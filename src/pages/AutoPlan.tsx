@@ -993,7 +993,7 @@ const AutoPlan = () => {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-8">
+    <div className="space-y-5 max-md:-mb-[calc(6.75rem+env(safe-area-inset-bottom))] sm:space-y-8">
      {/* Search-Driven Planning */}
       <Card className="rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
         <CardContent className="p-3 sm:py-4">
@@ -1218,7 +1218,7 @@ const AutoPlan = () => {
       </Card>
 
       {/* Generate Button */}
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-4">
+      <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-4">
         <Button
           onClick={generatePlan}
           size="lg"
