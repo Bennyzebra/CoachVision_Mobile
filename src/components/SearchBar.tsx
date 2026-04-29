@@ -40,7 +40,7 @@ export const SearchBar = () => {
       return "Run Practice";
     }
     if (pathname.startsWith("/drill")) {
-      return "Drill Details";
+      return "Drills";
     }
     if (pathname.startsWith("/discover") || pathname.startsWith("/drills")) {
       return "Discover Drills";
