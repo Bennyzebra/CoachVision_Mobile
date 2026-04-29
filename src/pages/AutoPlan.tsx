@@ -20,7 +20,6 @@ import {
 import {
   Sparkles,
   Users,
-  Target,
   AlertTriangle,
   UserPlus,
   Zap,
@@ -36,9 +35,7 @@ import { useTeam } from "@/contexts/TeamContext";
 import { DrillFeedbackRating, IntensityPreference, Drill } from "@/types";
 import { demoDrills } from "@/lib/demoData";
 import {
-  getPreloadedDrills,
   getPreloadedPlayers,
-  loadAutoPlanDrills,
   loadAutoPlanPlayers,
 } from "@/lib/autoplanPreload";
 import {
@@ -55,14 +52,12 @@ import {
 import {
   generateDrillExplainWhys,
   generatePracticePlan,
-  parseSearchIntent,
   summarizeIntentForPlanning,
   type PlanningIntent,
 } from "@/services/geminiService";
 import { GeneratedPlan } from "@/components/GeneratedPlan";
 import { getTeamDrillOutcomes, savePractice } from "@/services/practiceService";
 import { useAuth } from "@/contexts/AuthContext";
-import { SuggestedDrillCard } from "@/components/SuggestedDrillCard";
 
 const focusAreas = ["offense", "defense", "conditioning"] as const;
 type FocusArea = (typeof focusAreas)[number];
@@ -167,9 +162,6 @@ const AutoPlan = () => {
   const [searchText, setSearchText] = useState("");
   const [isParsingIntent, setIsParsingIntent] = useState(false);
   const [parsedIntent, setParsedIntent] = useState<PlanningIntent | null>(null);
-  const [suggestedDrills, setSuggestedDrills] = useState<Drill[]>([]);
-  const [preferredDrills, setPreferredDrills] = useState<string[]>([]);
-  const [allDrills, setAllDrills] = useState<Drill[]>([]);
   const [showApplyFromSearch, setShowApplyFromSearch] = useState(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const drillOutcomesUnavailableLoggedRef = useRef(false);
@@ -201,82 +193,6 @@ const AutoPlan = () => {
   const [isEditingDuration, setIsEditingDuration] = useState(false);
   const [practiceDefaults, setPracticeDefaults] = useState(normalizedDefaults);
 
-  // Helper function to find drills by keywords (fallback)
-  const findDrillsByKeywords = useCallback((text: string, drills: Drill[]): Drill[] => {
-    if (!text.trim() || drills.length === 0) return [];
-
-    const searchTerms = text.toLowerCase().split(/\s+/);
-    
-    const scoredDrills = drills.map(drill => {
-      let score = 0;
-      const drillText = `${drill.name} ${drill.focus} ${(drill.tags || []).join(" ")} ${drill.description}`.toLowerCase();
-      
-      searchTerms.forEach(term => {
-        if (drillText.includes(term)) score += 2;
-        if (drill.name.toLowerCase().includes(term)) score += 3;
-        if ((drill.tags || []).some(t => t.toLowerCase().includes(term))) score += 2;
-      });
-
-      // Boost verified and higher rated drills
-      if (drill.verified) score += 1;
-      score += (drill.rating || 0) * 0.5;
-
-      return { drill, score };
-    });
-
-    return scoredDrills
-      .filter(d => d.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map(d => d.drill);
-  }, []);
-
-  // Helper function to find drills by parsed intent
-  const findDrillsByIntent = useCallback((intent: PlanningIntent, drills: Drill[], practiceDuration: number): Drill[] => {
-    if (drills.length === 0) return [];
-
-    const scoredDrills = drills.map(drill => {
-      let score = 0;
-      
-      // Focus matching (highest weight)
-      if (drill.focus === intent.primary_focus) score += 10;
-      if (intent.secondary_focuses.includes(drill.focus)) score += 5;
-
-      // Keyword/tag matching
-      const drillTags = (drill.tags || []).map(t => t.toLowerCase());
-      const drillText = `${drill.name} ${drill.description}`.toLowerCase();
-      
-      intent.drill_keywords.forEach(keyword => {
-        const kw = keyword.toLowerCase();
-        if (drillTags.some(t => t.includes(kw))) score += 3;
-        if (drillText.includes(kw)) score += 2;
-      });
-
-      // Boost verified drills
-      if (drill.verified) score += 2;
-      
-      // Boost higher rated drills
-      score += (drill.rating || 0) * 0.5;
-
-      // Consider duration fit (if we have duration set)
-      if (practiceDuration > 0 && drill.duration <= practiceDuration * 0.3) {
-        score += 1; // Reasonable duration for the practice
-      }
-
-      // Favor drills appropriate for intermediate level as default
-      if (drill.level === "intermediate") {
-        score += 1;
-      }
-
-      return { drill, score };
-    });
-
-    return scoredDrills
-      .filter(d => d.score > 2) // Minimum relevance threshold
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map(d => d.drill);
-  }, []);
  const [lastProcessedQuery, setLastProcessedQuery] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -395,10 +311,6 @@ const AutoPlan = () => {
         setParsedIntent(planningIntent);
 
 
-        // Find suggested drills based on intent
-        const suggestions = findDrillsByIntent(planningIntent, allDrills, duration);
-        setSuggestedDrills(suggestions);
-        
         // Map intent focuses to our FocusOption type
         const mapFocus = (focus: string): FocusOption | null => {
           const normalized = focus.toLowerCase().replace(/\s+/g, "-");
@@ -442,9 +354,6 @@ const AutoPlan = () => {
         }
       } catch (error) {
         console.error("Planning intent parsing failed, using fallback:", error);
-        // Fall back to basic keyword matching for suggestions
-        const fallbackSuggestions = findDrillsByKeywords(query, allDrills);
-        setSuggestedDrills(fallbackSuggestions);
                 
         if (unmatchedTokens.length > 0) {
           const unmatchedText = unmatchedTokens.join(" ");
@@ -456,27 +365,12 @@ const AutoPlan = () => {
     };
 
     fetchIntent();
- }, [searchParams, lastProcessedQuery, goals, goalsManuallyEdited, allDrills, duration, findDrillsByIntent, findDrillsByKeywords]);
-
-  // Load all drills for suggestion matching
-  useEffect(() => {
-    const loadDrills = async () => {
-      const cached = getPreloadedDrills();
-      if (cached) {
-        setAllDrills(cached);
-        return;
-      }
-      const drills = await loadAutoPlanDrills();
-      setAllDrills(drills);      
-    };
-    loadDrills();
-  }, []);
+ }, [searchParams, lastProcessedQuery, goals, goalsManuallyEdited]);
 
   // Debounced search intent parsing (700-1000ms after typing stops or on Enter)
   const parseSearchIntentDebounced = useCallback(async (text: string) => {
     if (!text.trim()) {
       setParsedIntent(null);
-      setSuggestedDrills([]);
       setShowApplyFromSearch(false);
       return;
     }
@@ -524,18 +418,12 @@ const AutoPlan = () => {
         setShowApplyFromSearch(true);
       }
 
-      // Find suggested drills based on intent
-      const suggestions = findDrillsByIntent(intent, allDrills, duration);
-      setSuggestedDrills(suggestions);
     } catch (error) {
       console.error("Failed to parse search intent:", error);
-      // Fall back to keyword-based suggestions
-      const fallbackSuggestions = findDrillsByKeywords(text, allDrills);
-      setSuggestedDrills(fallbackSuggestions);
     } finally {
       setIsParsingIntent(false);
     }
-  }, [goals, goalsManuallyEdited, allDrills, duration, findDrillsByIntent, findDrillsByKeywords]);
+  }, [goals, goalsManuallyEdited]);
 
   // Handle search text changes with debouncing
   useEffect(() => {
@@ -546,7 +434,6 @@ const AutoPlan = () => {
 
     if (!searchText.trim()) {
       setParsedIntent(null);
-      setSuggestedDrills([]);
       setShowApplyFromSearch(false);
       return;
     }
@@ -573,20 +460,6 @@ const AutoPlan = () => {
       }
       parseSearchIntentDebounced(searchText);
     }
-  };
-
-  // Handle adding a drill to preferred list
-  const handleAddToPreferred = (drillId: string) => {
-    setPreferredDrills(prev => {
-      if (prev.includes(drillId)) return prev;
-      return [...prev, drillId];
-    });
-    toast.success("Drill pinned for plan generation");
-  };
-
-  // Handle removing a drill from preferred list
-  const handleRemoveFromPreferred = (drillId: string) => {
-    setPreferredDrills(prev => prev.filter(id => id !== drillId));
   };
 
   // Apply suggested goals from search
@@ -781,12 +654,11 @@ const AutoPlan = () => {
         focus,
         duration,
         goals,
-        preferredDrillIds: preferredDrills, // Pass preferred drills to influence plan  
         coachId: user?.id,
         teamId: currentTeam?.id,        
       };
 
-      const result = await generatePracticePlan(coachRequirements, availableDrills, preferredDrills);
+      const result = await generatePracticePlan(coachRequirements, availableDrills);
 
       const teamProfileSummary = currentTeam?.team_profile_summary as TeamProfileSummary | null | undefined;
       const explainWhyMap = await generateDrillExplainWhys({
@@ -1345,84 +1217,6 @@ const AutoPlan = () => {
         </CardContent>
       </Card>
 
-      {/* Suggested Drills Section */}
-      <Card className="rounded-xl border-2">
-        <CardHeader className="p-4 pb-3 sm:p-6 sm:pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Target className="h-5 w-5 text-primary" />
-            Suggested Drills for This Focus
-          </CardTitle>
-          <CardDescription>
-            {searchText.trim() 
-              ? "Drills that match your search intent. Pin them to influence plan generation."
-              : "Type what you want to work on above to see suggested drills."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-          {!searchText.trim() ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Search className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">Enter your focus above to see drill suggestions</p>
-            </div>
-          ) : isParsingIntent ? (
-            <div className="text-center py-8">
-              <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Finding matching drills...</p>
-            </div>
-          ) : suggestedDrills.length > 0 ? (
-            <div className="space-y-2">
-              {suggestedDrills.map((drill) => (
-                <SuggestedDrillCard
-                  key={drill.id}
-                  drill={drill}
-                  onAddToPlan={handleAddToPreferred}
-                  isAdded={preferredDrills.includes(drill.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <AlertTriangle className="h-8 w-8 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">No matching drills found. Try different search terms.</p>
-            </div>
-          )}
-
-          {/* Pinned drills indicator */}
-          {preferredDrills.length > 0 && (
-            <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Pinned for plan ({preferredDrills.length})
-                </span>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-xs h-7"
-                  onClick={() => setPreferredDrills([])}
-                >
-                  Clear all
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {preferredDrills.map((drillId) => {
-                  const drill = allDrills.find(d => d.id === drillId);
-                  return drill ? (
-                    <Badge 
-                      key={drillId} 
-                      variant="secondary" 
-                      className="gap-1 cursor-pointer hover:bg-destructive/20"
-                      onClick={() => handleRemoveFromPreferred(drillId)}
-                    >
-                      {drill.name}
-                      <span className="text-xs opacity-60">×</span>
-                    </Badge>
-                  ) : null;
-                })}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
       {/* Generate Button */}
       <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-4">
         <Button
