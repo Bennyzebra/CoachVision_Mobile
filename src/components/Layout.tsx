@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { 
   ChevronDown,
   Settings,
@@ -41,14 +41,18 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+type RouteMotionDirection = "left" | "right" | null;
+
 export const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentTeam } = useTeam();
   const { profile, session, signOut } = useAuth();
   const { theme = "system", setTheme } = useTheme();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileHeaderHidden, setIsMobileHeaderHidden] = useState(false);
+  const [routeMotionDirection, setRouteMotionDirection] = useState<RouteMotionDirection>(null);
   const [isThemeSelectOpen, setIsThemeSelectOpen] = useState(false);  
   const [isProfileDropdownHovered, setIsProfileDropdownHovered] = useState(false);  
   const userEmail = profile?.email ?? session?.user?.email ?? "Email not available";
@@ -107,6 +111,22 @@ export const Layout = ({ children }: LayoutProps) => {
       window.removeEventListener("touchend", handleTouchEnd);
     };
   }, []);
+
+  useEffect(() => {
+    const handleRouteMotion = (event: Event) => {
+      const detail = (event as CustomEvent<{ direction?: RouteMotionDirection }>).detail;
+      setRouteMotionDirection(detail?.direction === "right" ? "right" : "left");
+    };
+
+    window.addEventListener("coachvision:route-motion", handleRouteMotion);
+    return () => window.removeEventListener("coachvision:route-motion", handleRouteMotion);
+  }, []);
+
+  useEffect(() => {
+    if (!routeMotionDirection) return;
+    const timeout = window.setTimeout(() => setRouteMotionDirection(null), 300);
+    return () => window.clearTimeout(timeout);
+  }, [location.pathname, routeMotionDirection]);
   
   const handleThemeSelectOpenChange = (open: boolean) => {
     if (!open && keepThemeSelectOpenRef.current) {
@@ -357,8 +377,17 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-24 sm:px-6 md:py-6 lg:px-8">
-        {children}
+      <main className="mx-auto max-w-7xl overflow-x-hidden px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-24 sm:px-6 md:py-6 lg:px-8">
+        <div
+          key={location.pathname}
+          className={cn(
+            "will-change-transform",
+            routeMotionDirection === "right" && "mobile-screen-slide-right",
+            routeMotionDirection === "left" && "mobile-screen-slide-left"
+          )}
+        >
+          {children}
+        </div>
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-background/85 md:hidden">
