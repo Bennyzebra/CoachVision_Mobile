@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
@@ -24,7 +24,7 @@ import {
   updatePractice,
 } from "@/services/practiceService";
 import { toast } from "sonner";
-import { Calendar, CheckCircle2, Clock, Copy, Pencil } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, Copy, Filter, Pencil } from "lucide-react";
 
 const PAGE_SIZE = 10;
 const GENERATED_PLAN_STORAGE_KEY = "coachvision-auto-plan-generated";
@@ -72,6 +72,7 @@ const PracticeTracker = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isReusing, setIsReusing] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -92,7 +93,7 @@ const PracticeTracker = () => {
     return currentTeam?.id;
   }, [teamFilter, currentTeam?.id]);
 
-  const loadPractices = async () => {
+  const loadPractices = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -118,11 +119,11 @@ const PracticeTracker = () => {
     setPractices(data.data);
     setTotalCount(data.total);
     setLoading(false);
-  };
+  }, [fromDate, page, search, selectedTeamId, status, toDate, user]);
 
   useEffect(() => {
     loadPractices();
-  }, [user?.id, selectedTeamId, status, page]);
+  }, [loadPractices]);
 
   const handleApplyFilters = async () => {
     setPage(1);
@@ -206,32 +207,41 @@ const PracticeTracker = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <p className="text-muted-foreground">Browse, edit, and reuse your historical practices.</p>
 
-      <Card>
-        <CardHeader>
+      <Card className="rounded-xl">
+        <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
           <CardTitle>Filters</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10 gap-2 md:hidden"
+            onClick={() => setShowFilters((value) => !value)}
+          >
+            <Filter className="h-4 w-4" />
+            {showFilters ? "Hide" : "Show"}
+          </Button>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+        <CardContent className={`grid grid-cols-1 gap-3 p-4 pt-0 md:grid md:grid-cols-2 md:p-6 md:pt-0 lg:grid-cols-6 ${showFilters ? "grid" : "hidden"}`}>
           <div className="space-y-1 lg:col-span-2">
             <Label>Search</Label>
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Title or notes" />
+            <Input className="h-11" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Title or notes" />
           </div>
           <div className="space-y-1">
             <Label>From</Label>
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            <Input className="h-11" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label>To</Label>
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <Input className="h-11" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label>Status</Label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as typeof status)}
-              className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+              className="h-11 w-full rounded-md border bg-background px-3 text-sm"
             >
               <option value="all">All</option>
               <option value="completed">Completed</option>
@@ -243,7 +253,7 @@ const PracticeTracker = () => {
             <select
               value={teamFilter}
               onChange={(e) => setTeamFilter(e.target.value)}
-              className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+              className="h-11 w-full rounded-md border bg-background px-3 text-sm"
             >
               <option value="all">Current team</option>
               {teams.map((team) => (
@@ -253,17 +263,17 @@ const PracticeTracker = () => {
               ))}
             </select>
           </div>
-          <div className="lg:col-span-6 flex justify-end">
-            <Button onClick={handleApplyFilters}>Apply filters</Button>
+          <div className="flex justify-end lg:col-span-6">
+            <Button className="h-11 w-full sm:w-auto" onClick={handleApplyFilters}>Apply filters</Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
+      <Card className="rounded-xl">
+        <CardHeader className="p-4 sm:p-6">
           <CardTitle>Practice History</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((item) => (
@@ -291,10 +301,10 @@ const PracticeTracker = () => {
                     key={practice.id}
                     type="button"
                     onClick={() => openDetails(practice)}
-                    className="w-full text-left border rounded-lg p-3 hover:bg-muted/50 transition-colors"
+                    className="w-full rounded-xl border p-4 text-left transition-colors hover:bg-muted/50"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
                         <div className="font-medium">{practice.title || "Untitled practice"}</div>
                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
                           <span className="inline-flex items-center gap-1">
@@ -305,7 +315,7 @@ const PracticeTracker = () => {
                           {summary.rating ? <span>Rating: {summary.rating}/5</span> : null}
                         </div>
                       </div>
-                      <Badge variant="secondary" className={isCompleted ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}>
+                      <Badge variant="secondary" className={`w-fit ${isCompleted ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
                         {isCompleted ? (
                           <span className="inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Completed</span>
                         ) : (
@@ -316,11 +326,11 @@ const PracticeTracker = () => {
                   </button>
                 );
               })}
-              <div className="flex justify-between items-center pt-2">
+              <div className="flex items-center justify-between gap-3 pt-2">
                 <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Prev</Button>
-                  <Button variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</Button>
+                  <Button className="h-11" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Prev</Button>
+                  <Button className="h-11" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</Button>
                 </div>
               </div>
             </div>
@@ -329,7 +339,7 @@ const PracticeTracker = () => {
       </Card>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="sm:max-w-2xl w-full overflow-y-auto">
+        <SheetContent className="touch-scroll w-full overflow-y-auto sm:max-w-2xl">
           <SheetHeader>
             <SheetTitle>Practice Details</SheetTitle>
             <SheetDescription>Review drills, coach notes, and update this session.</SheetDescription>
@@ -339,11 +349,11 @@ const PracticeTracker = () => {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>Title</Label>
-                <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                <Input className="h-11" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Scheduled date</Label>
-                <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                <Input className="h-11" type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Coach notes</Label>
@@ -360,19 +370,19 @@ const PracticeTracker = () => {
                       <p className="text-sm text-muted-foreground">No drills logged for this segment.</p>
                     ) : (
                       editPlan[segment].map((drill, index) => (
-                        <div key={`${segment}-${drill.id}-${index}`} className="border rounded-md p-2 space-y-2">
+                        <div key={`${segment}-${drill.id}-${index}`} className="space-y-3 rounded-lg border p-3">
                           <div className="font-medium">{index + 1}. {drill.name}</div>
-                          <div className="flex gap-2 items-center">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Label className="text-xs">Duration</Label>
                             <Input
                               type="number"
                               min={1}
                               value={drill.duration}
                               onChange={(e) => updateDrillDuration(segment, index, Number(e.target.value || 1))}
-                              className="w-24"
+                              className="h-10 w-24"
                             />
-                            <Button variant="outline" size="sm" onClick={() => moveDrill(segment, index, -1)}>Up</Button>
-                            <Button variant="outline" size="sm" onClick={() => moveDrill(segment, index, 1)}>Down</Button>
+                            <Button className="h-10" variant="outline" size="sm" onClick={() => moveDrill(segment, index, -1)}>Up</Button>
+                            <Button className="h-10" variant="outline" size="sm" onClick={() => moveDrill(segment, index, 1)}>Down</Button>
                           </div>
                         </div>
                       ))
@@ -388,12 +398,12 @@ const PracticeTracker = () => {
             </div>
           ) : null}
 
-          <SheetFooter>
-            <Button variant="outline" onClick={handleUseAgain} disabled={isReusing}>
+          <SheetFooter className="gap-2 sm:gap-0">
+            <Button className="h-11" variant="outline" onClick={handleUseAgain} disabled={isReusing}>
               <Copy className="h-4 w-4 mr-2" />
               {isReusing ? "Reusing..." : "Use Again"}
             </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
+            <Button className="h-11" onClick={handleSave} disabled={isSaving}>
               <Pencil className="h-4 w-4 mr-2" />
               {isSaving ? "Saving..." : "Edit & Save"}
             </Button>

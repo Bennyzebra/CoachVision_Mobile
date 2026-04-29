@@ -51,7 +51,7 @@ const SettingRow = ({ label, description, control, destructive = false }: Settin
       <p className={`text-sm font-medium ${destructive ? "text-destructive" : "text-foreground"}`}>{label}</p>
       {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
     </div>
-    <div className="sm:justify-self-end">{control}</div>
+    <div className="w-full sm:w-auto sm:justify-self-end">{control}</div>
   </div>
 );
 
@@ -264,7 +264,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 pb-12">
+    <div className="mx-auto max-w-5xl space-y-6 pb-12 sm:space-y-8">
       <header className="space-y-3">
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-7 w-7 text-primary" />
@@ -276,13 +276,13 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        <div className="sticky top-0 z-10 -mx-2 border-y border-border/60 bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <div className="flex flex-wrap gap-1">
+        <div className="sticky top-0 z-10 -mx-4 border-y border-border/60 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:-mx-2 md:px-2">
+          <div className="touch-scroll flex gap-1 overflow-x-auto md:flex-wrap">
             {sections.map((section) => (
               <a
                 key={section.id}
                 href={`#${section.id}`}
-                className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                className="shrink-0 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
               >
                 {section.label}
               </a>
@@ -309,14 +309,14 @@ const SettingsPage = () => {
                 <Input
                   value={profileForm.coachName}
                   onChange={(e) => setProfileForm({ ...profileForm, coachName: e.target.value })}
-                  className="w-72"
+                  className="h-11 w-full sm:w-72"
                 />
               }
             />
             <SettingRow
               label="Email"
               description="Email changes are managed through your authenticated account provider."
-              control={<Input value={profileForm.email} className="w-72" disabled />}
+              control={<Input value={profileForm.email} className="h-11 w-full sm:w-72" disabled />}
             />
             <SettingRow
               label="Sport"
@@ -324,7 +324,7 @@ const SettingsPage = () => {
                 <Input
                   value={profileForm.sport}
                   onChange={(e) => setProfileForm({ ...profileForm, sport: e.target.value })}
-                  className="w-56"
+                  className="h-11 w-full sm:w-56"
                 />
               }
             />
@@ -334,7 +334,7 @@ const SettingsPage = () => {
                 <Input
                   value={profileForm.organization}
                   onChange={(e) => setProfileForm({ ...profileForm, organization: e.target.value })}
-                  className="w-72"
+                  className="h-11 w-full sm:w-72"
                   placeholder="e.g., Hawks Club"
                 />
               }
@@ -343,17 +343,17 @@ const SettingsPage = () => {
               label="Password"
               description="Keep your account secure with a strong password."
               control={
-                <Button variant="outline" size="sm" onClick={() => setIsPasswordDialogOpen(true)}>
+                <Button className="h-11 w-full sm:w-auto" variant="outline" size="sm" onClick={() => setIsPasswordDialogOpen(true)}>
                   <Lock className="mr-2 h-4 w-4" />
                   Change Password
                 </Button>
               }
             />
-            <div className="flex justify-end gap-2 px-4 py-3">
-              <Button variant="ghost" size="sm" onClick={handleCancelProfileEdit}>
+            <div className="flex flex-col-reverse justify-end gap-2 px-4 py-3 sm:flex-row">
+              <Button className="h-11" variant="ghost" size="sm" onClick={handleCancelProfileEdit}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleSaveProfile}>
+              <Button className="h-11" size="sm" onClick={handleSaveProfile}>
                 Save Profile
               </Button>
             </div>

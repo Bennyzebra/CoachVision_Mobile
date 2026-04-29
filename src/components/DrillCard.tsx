@@ -29,11 +29,11 @@ const focusColors: Record<string, string> = {
   };
 
   return (
-    <Card className="h-full flex flex-col hover:shadow-lg transition-shadow">
-      <CardHeader>
+    <Card className="h-full flex flex-col rounded-xl hover:shadow-lg transition-shadow">
+      <CardHeader className="p-4 sm:p-6">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <h3 className="font-semibold text-lg mb-2">{drill.name}</h3>
+          <div className="min-w-0 flex-1">
+            <h3 className="mb-2 text-base font-semibold leading-snug sm:text-lg">{drill.name}</h3>
             <div className="flex items-center gap-2 flex-wrap">
               <Badge className={focusColors[drill.focus]}>
                 {drill.focus}
@@ -46,7 +46,7 @@ const focusColors: Record<string, string> = {
               )}
             </div>
           </div>
-          <div className="flex items-start gap-2">
+          <div className="flex shrink-0 items-start gap-2">
             <div className="flex items-center gap-1 text-sm">
               <Star className="h-4 w-4 fill-secondary text-secondary" />
               <span className="font-medium">{drill.rating}</span>
@@ -57,10 +57,10 @@ const focusColors: Record<string, string> = {
         </div>
       </CardHeader>
       
-      <CardContent className="flex-1">
-        <p className="text-sm text-muted-foreground mb-3">{drill.description}</p>
+      <CardContent className="flex-1 px-4 pb-3 sm:px-6">
+        <p className="mb-3 line-clamp-4 text-sm leading-6 text-muted-foreground sm:line-clamp-none">{drill.description}</p>
         {drill.explainWhy && (
-          <p className="text-xs text-muted-foreground mb-3">
+          <p className="mb-3 rounded-lg bg-muted/60 p-3 text-xs leading-5 text-muted-foreground">
             <span className="font-medium text-foreground">Why this drill:</span> {drill.explainWhy}
           </p>
         )}        
@@ -69,11 +69,11 @@ const focusColors: Record<string, string> = {
         </div>
       </CardContent>
       
-      <CardFooter className="gap-2">
+      <CardFooter className="flex-col gap-2 p-4 pt-0 sm:flex-row sm:p-6 sm:pt-0">
         {onView && (
           <Button
             variant="outline"
-            className="flex-1"
+            className="h-11 w-full flex-1"
             onClick={() => onView(drill.id)}
           >
             View Details
@@ -82,7 +82,7 @@ const focusColors: Record<string, string> = {
         {onRemove && (
           <Button
             variant="outline"
-            className="flex-1 gap-2"
+            className="h-11 w-full flex-1 gap-2"
             onClick={() => onRemove(drill.id)}
           >
             <Trash2 className="h-4 w-4" />
@@ -91,7 +91,7 @@ const focusColors: Record<string, string> = {
         )}        
         {onAdd && (
           <Button
-            className="flex-1 gap-2"
+            className="h-11 w-full flex-1 gap-2"
             onClick={() => onAdd(drill.id)}
             disabled={isAdded}
           >

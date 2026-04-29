@@ -55,7 +55,7 @@ const Team = () => {
     setHasChanges(false);
         setTeamNameInput(currentTeam?.team_name || "");
     setIsEditingName(false);
-  }, [currentTeam?.id]);
+  }, [currentTeam?.id, currentTeam?.team_name]);
 
   const updateConfig = (updates: Partial<TeamRosterConfig>) => {
     setConfig((prev) => ({ ...prev, ...updates }));
@@ -147,29 +147,30 @@ const handleSave = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-muted-foreground">Configure your team for optimized practice planning</p>
         </div>
-        <Button onClick={handleSave} disabled={!hasChanges} className="gap-2">
+        <Button onClick={handleSave} disabled={!hasChanges} className="h-11 w-full gap-2 sm:w-auto">
           <Save className="h-4 w-4" />
           Save Changes
         </Button>
       </div>
 
       {/* Team Info Card */}
-      <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-        <CardHeader>
+      <Card className="rounded-xl border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+        <CardHeader className="p-4 sm:p-6">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/20">
               <Users className="h-6 w-6 text-primary" />
             </div>
-            <div className="space-y-1">
+            <div className="min-w-0 flex-1 space-y-1">
               {isEditingName ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
+                    className="h-11"
                     value={teamNameInput}
                     onChange={(e) => setTeamNameInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -181,7 +182,7 @@ const handleSave = () => {
                     autoFocus
                     disabled={isSavingName}
                   />
-                  <Button size="sm" onClick={handleTeamNameSave} disabled={isSavingName}>
+                  <Button className="h-11" size="sm" onClick={handleTeamNameSave} disabled={isSavingName}>
                     {isSavingName ? "Saving..." : "Save"}
                   </Button>
                 </div>
@@ -191,7 +192,7 @@ const handleSave = () => {
                   onClick={() => setIsEditingName(true)}
                   title="Click to edit team name"
                 >
-                  <CardTitle className="text-xl">{teamNameInput || currentTeam.team_name}</CardTitle>
+                  <CardTitle className="text-xl leading-tight">{teamNameInput || currentTeam.team_name}</CardTitle>
                 </button>
               )}
               <CardDescription className="text-sm text-muted-foreground">
@@ -204,8 +205,8 @@ const handleSave = () => {
       </Card>
 
       {/* AI Optimization Notice */}
-      <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
-        <CardContent className="py-4">
+      <Card className="rounded-xl border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+        <CardContent className="p-4 sm:py-4">
           <div className="flex items-start gap-3">
             <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
             <div>
@@ -219,17 +220,17 @@ const handleSave = () => {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         {/* Team Size */}
-        <Card>
-          <CardHeader>
+        <Card className="rounded-xl">
+          <CardHeader className="p-4 sm:p-6">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
               <CardTitle>Team Size</CardTitle>
             </div>
             <CardDescription>Total number of players on your roster</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
             <div className="flex items-center gap-4">
               <Input
                 type="number"
@@ -239,7 +240,7 @@ const handleSave = () => {
                 onChange={(e) =>
                   updateConfig({ totalPlayers: Math.max(1, Math.min(30, parseInt(e.target.value) || 1)) })
                 }
-                className="w-24 text-center text-lg font-semibold"
+                className="h-12 w-24 text-center text-lg font-semibold"
               />
               <span className="text-muted-foreground">players</span>
             </div>
@@ -256,16 +257,16 @@ const handleSave = () => {
         </Card>
 
         {/* Age Range */}
-        <Card>
-          <CardHeader>
+        <Card className="rounded-xl">
+          <CardHeader className="p-4 sm:p-6">
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-primary" />
               <CardTitle>Age Range</CardTitle>
             </div>
             <CardDescription>Age range of players on your team</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
+          <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               <div className="space-y-1">
                 <Label htmlFor="minAge" className="text-xs text-muted-foreground">
                   Min Age
@@ -281,7 +282,7 @@ const handleSave = () => {
                       ageRangeMin: Math.max(5, Math.min(config.ageRangeMax, parseInt(e.target.value) || 5)),
                     })
                   }
-                  className="w-20 text-center"
+                  className="h-11 w-20 text-center"
                 />
               </div>
               <span className="text-muted-foreground mt-5">to</span>
@@ -300,7 +301,7 @@ const handleSave = () => {
                       ageRangeMax: Math.max(config.ageRangeMin, Math.min(25, parseInt(e.target.value) || 25)),
                     })
                   }
-                  className="w-20 text-center"
+                  className="h-11 w-20 text-center"
                 />
               </div>
               <span className="text-muted-foreground mt-5">years old</span>
@@ -315,7 +316,7 @@ const handleSave = () => {
                 <Badge
                   key={preset.label}
                   variant={config.ageRangeMin === preset.min && config.ageRangeMax === preset.max ? "default" : "outline"}
-                  className="cursor-pointer hover:bg-primary/10"
+                  className="cursor-pointer px-3 py-1.5 hover:bg-primary/10"
                   onClick={() => updateConfig({ ageRangeMin: preset.min, ageRangeMax: preset.max })}
                 >
                   {preset.label}
@@ -327,9 +328,9 @@ const handleSave = () => {
       </div>
         
       {/* Position Distribution */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+      <Card className="rounded-xl">
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
               <CardTitle>Position Distribution</CardTitle>
@@ -342,10 +343,10 @@ const handleSave = () => {
             How many players at each position? This helps tailor drill selection and groupings.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {/* Guards */}
-            <div className="space-y-3">
+            <div className="rounded-xl border bg-background/50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Guards</Label>
                <Badge
@@ -367,7 +368,7 @@ const handleSave = () => {
             </div>
 
             {/* Forwards */}
-            <div className="space-y-3">
+            <div className="rounded-xl border bg-background/50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Forwards</Label>
                 <Badge
@@ -389,7 +390,7 @@ const handleSave = () => {
             </div>
 
             {/* Centers */}
-            <div className="space-y-3">
+            <div className="rounded-xl border bg-background/50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Centers</Label>
                 <Badge
@@ -412,7 +413,7 @@ const handleSave = () => {
           </div>
 
           {totalPositions !== config.totalPlayers && (
-            <div className="mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
               <p className="text-sm text-amber-800 dark:text-amber-200">
                 {totalPositions < config.totalPlayers
                   ? `You have ${config.totalPlayers - totalPositions} player(s) not assigned to a position.`
@@ -424,12 +425,12 @@ const handleSave = () => {
       </Card>
 
       {/* Summary Card */}
-      <Card className="bg-muted/30">
-        <CardHeader>
+      <Card className="rounded-xl bg-muted/30">
+        <CardHeader className="p-4 sm:p-6">
           <CardTitle className="text-lg">Configuration Summary</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+          <div className="grid grid-cols-2 gap-3 text-center md:grid-cols-4 md:gap-4">
             <div className="p-4 rounded-lg bg-background border">
               <div className="text-3xl font-bold text-primary">{config.totalPlayers}</div>
               <div className="text-sm text-muted-foreground">Total Players</div>
