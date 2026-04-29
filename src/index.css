@@ -144,4 +144,34 @@ All colors MUST be HSL.
     min-height: 44px;
     min-width: 44px;
   }
+
+  .mobile-screen-slide-right {
+    animation: mobile-screen-slide-right 300ms ease-out both;
+  }
+
+  .mobile-screen-slide-left {
+    animation: mobile-screen-slide-left 300ms ease-out both;
+  }
+}
+
+@keyframes mobile-screen-slide-right {
+  from {
+    opacity: 0.9;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes mobile-screen-slide-left {
+  from {
+    opacity: 0.9;
+    transform: translateX(-32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
