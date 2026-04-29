@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { 
   ChevronDown,
   Settings,
@@ -7,7 +7,12 @@ import {
   LogOut,
   HelpCircle,
   Users,
-  ClipboardList,  
+  ClipboardList,
+  Sparkles,
+  Dumbbell,
+  PlayCircle,
+  History,
+  Menu,
 } from "lucide-react";
 import logo from "@/assets/CoachVision_Final.png";
 import { SearchBar } from "@/components/SearchBar";
@@ -28,6 +33,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -35,10 +48,13 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentTeam } = useTeam();
   const { profile, session, signOut } = useAuth();
   const { theme = "system", setTheme } = useTheme();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileHeaderHidden, setIsMobileHeaderHidden] = useState(false);
   const [isThemeSelectOpen, setIsThemeSelectOpen] = useState(false);  
   const [isProfileDropdownHovered, setIsProfileDropdownHovered] = useState(false);  
   const userEmail = profile?.email ?? session?.user?.email ?? "Email not available";
@@ -48,6 +64,77 @@ export const Layout = ({ children }: LayoutProps) => {
   const coachDisplayName = lastName ? `${firstName} ${lastName}` : firstName;  
   const themeTriggerRef = useRef<HTMLButtonElement | null>(null);  
   const keepThemeSelectOpenRef = useRef(false);
+  const lastScrollYRef = useRef(0);
+  const lastTouchYRef = useRef<number | null>(null);
+  const touchVelocityRef = useRef(0);
+
+  const navItems = useMemo(
+    () => [
+      { label: "Auto", path: "/", icon: Sparkles, match: ["/", "/auto-plan"] },
+      { label: "Drills", path: "/drills", icon: Dumbbell, match: ["/drills", "/drill"] },
+      { label: "Plan", path: "/plan", icon: PlayCircle, match: ["/plan", "/run"] },
+      { label: "Team", path: "/team", icon: Users, match: ["/team"] },
+      { label: "History", path: "/practice-tracker", icon: History, match: ["/practice-tracker"] },
+    ],
+    []
+  );
+
+  const getIsActive = (matches: string[]) =>
+    matches.some((match) =>
+      match === "/" ? location.pathname === "/" : location.pathname.startsWith(match)
+    );
+
+  const activeNavItem = navItems.find((item) => getIsActive(item.match));
+  const pageTitle =
+    activeNavItem?.label === "Auto"
+      ? "Generate Practice Plan"
+      : activeNavItem?.label || "CoachVision";
+
+  useEffect(() => {
+    const handleTouchMove = (event: TouchEvent) => {
+      const nextY = event.touches[0]?.clientY;
+      if (typeof nextY !== "number") return;
+      if (lastTouchYRef.current !== null) {
+        touchVelocityRef.current = nextY - lastTouchYRef.current;
+      }
+      lastTouchYRef.current = nextY;
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchYRef.current = null;
+      touchVelocityRef.current = 0;
+    };
+
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const delta = currentY - lastScrollYRef.current;
+      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+
+      if (!isMobile || currentY < 16) {
+        setIsMobileHeaderHidden(false);
+        lastScrollYRef.current = currentY;
+        return;
+      }
+
+      const force = Math.abs(delta) + Math.abs(touchVelocityRef.current);
+      if (force > 6) {
+        setIsMobileHeaderHidden(delta > 0);
+      }
+
+      lastScrollYRef.current = currentY;
+    };
+
+    lastScrollYRef.current = window.scrollY;
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, []);
   
   const handleThemeSelectOpenChange = (open: boolean) => {
     if (!open && keepThemeSelectOpenRef.current) {
@@ -97,10 +184,81 @@ export const Layout = ({ children }: LayoutProps) => {
     if (!isThemeSelectOpen) {
       setIsProfileMenuOpen(false);
     }
-  };  
+  };
+
+  const handleNavigate = (path: string) => {
+    setIsMobileMenuOpen(false);
+    setIsProfileMenuOpen(false);
+    navigate(path);
+  };
+
+  const accountMenuContent = (
+    <div className="space-y-1">
+      <div className="px-3 py-2 text-left">
+        <p className="text-sm font-semibold text-foreground break-words">
+          {coachDisplayName}
+        </p>
+        <p className="text-sm text-muted-foreground break-words">{userEmail}</p>
+      </div>
+      <Separator />
+      <div className="px-3 py-1.5" onClick={handleThemeSectionClick}>
+        <p className="mb-2 text-sm font-medium">Theme</p>
+        <Select
+          open={isThemeSelectOpen}
+          value={theme}
+          onValueChange={handleThemeValueChange}
+          onOpenChange={handleThemeSelectOpenChange}
+        >
+          <SelectTrigger ref={themeTriggerRef} data-theme-trigger className="h-11 md:h-9">
+            <SelectValue placeholder="Select theme" />
+          </SelectTrigger>
+          <SelectContent data-profile-theme-select-content>
+            <SelectItem value="system">System</SelectItem>
+            <SelectItem value="light">Light</SelectItem>
+            <SelectItem value="dark">Dark</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <Separator />
+      <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/team")}>
+        <Users className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+        Team & Roster
+      </Button>
+      <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/settings")}>
+        <Settings className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+        Settings
+      </Button>
+      <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/practice-tracker")}>
+        <ClipboardList className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+        Practice History
+      </Button>
+      <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/submit")}>
+        <Send className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+        Submit Drill
+      </Button>
+      <Separator />
+      <Button
+        variant="ghost"
+        className="h-12 w-full justify-start md:h-10"
+        onClick={() => window.open("https://docs.lovable.dev", "_blank")}
+      >
+        <HelpCircle className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+        Get Help
+      </Button>
+      <Button
+        variant="ghost"
+        className="h-12 w-full justify-start text-destructive md:h-10"
+        onClick={signOut}
+      >
+        <LogOut className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+        Log Out
+      </Button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-card">
+      <nav className="hidden border-b border-border bg-card md:block">
         <div   className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Left: Team name & logo */}
@@ -135,7 +293,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 <div 
                       className={`
                   relative z-10 h-9 w-9 rounded-full bg-secondary
-                        transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]
+                        transition-all duration-500 ease-out
                         group-hover:w-[3.25rem] group-hover:rounded-[1.125rem]
                         will-change-[width,border-radius]
                         ${isProfileMenuOpen ? "w-[3.25rem] rounded-[1.125rem]" : ""}
@@ -166,99 +324,108 @@ export const Layout = ({ children }: LayoutProps) => {
                     }
                   }}
                 >
-                <div className="space-y-1">
-                    <div className="px-3 py-2 text-left">
-                      <p className="text-sm font-semibold text-foreground break-words">
-                        {coachDisplayName}
-                      </p>
-                      <p className="text-sm text-muted-foreground break-words">{userEmail}</p>
-                    </div>
-                    <Separator />
-                    <div className="px-3 py-1.5" onClick={handleThemeSectionClick}>
-                  <p className="mb-2 text-sm font-medium">Theme</p>
-                      <Select
-                        open={isThemeSelectOpen}
-                        value={theme}
-                        onValueChange={handleThemeValueChange}
-                        onOpenChange={handleThemeSelectOpenChange}
-                      >
-                      <SelectTrigger ref={themeTriggerRef} data-theme-trigger className="h-9">
-                        <SelectValue placeholder="Select theme" />
-                        </SelectTrigger>
-                        <SelectContent data-profile-theme-select-content>
-                          <SelectItem value="system">System</SelectItem>
-                          <SelectItem value="light">Light</SelectItem>
-                          <SelectItem value="dark">Dark</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Separator />
-                   <Button
-                      variant="ghost"
-                      className="w-full justify-start"
-                      onClick={() => navigate("/team")}
-                    >
-                      <Users className="mr-2 h-4 w-4" />
-                      Team & Roster
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start"
-                      onClick={() => navigate("/settings")}
-                    >
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start"
-                      onClick={() => navigate("/practice-tracker")}
-                    >
-                      <ClipboardList className="mr-2 h-4 w-4" />
-                      Practice History
-                    </Button>                  
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start"
-                      onClick={() => navigate("/submit")}
-                    >
-                      <Send className="mr-2 h-4 w-4" />
-                      Submit Drill
-                    </Button>
-                    <Separator />
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start"
-                      onClick={() => window.open("https://docs.lovable.dev", "_blank")}
-                    >
-                      <HelpCircle className="mr-2 h-4 w-4" />
-                      Get Help
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start text-destructive"
-                      onClick={signOut}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Log Out
-                    </Button>
-                  </div>
+                  {accountMenuContent}
                 </PopoverContent>
               </Popover>
             </div>
           </div>
         </div>
       </nav>
-      
-      {/* Mobile: Search Bar */}
-      <div className="md:hidden border-b border-border bg-card">
-        <div className="flex justify-center px-4 py-3">
-          <SearchBar />
+
+      <header
+        className={cn(
+          "fixed inset-x-0 top-0 z-40 border-b border-border/80 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden",
+          "transition-transform duration-300 ease-out will-change-transform",
+          isMobileHeaderHidden ? "-translate-y-full" : "translate-y-0"
+        )}
+      >
+        <div className="mobile-safe-top px-4 pt-2">
+          <div className="flex h-14 items-center justify-between gap-3">
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              onClick={() => handleNavigate("/")}
+              aria-label="Go to Auto Plan"
+            >
+              {currentTeam?.logo_url ? (
+                <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-9 w-9 rounded-full object-cover" />
+              ) : (
+                <img src={logo} alt="CoachVision" className="h-12 w-auto shrink-0" />
+              )}
+              <span className="h-6 w-px shrink-0 rounded-full bg-border" aria-hidden="true" />
+              <span className="truncate text-base font-semibold">
+                {currentTeam?.team_name || "CoachVision"}
+              </span>
+            </button>
+
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11 rounded-full border border-border/70 bg-card"
+                  aria-label="Open account menu"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-base font-semibold text-black">
+                    {(profile?.coach_name || "Coach").charAt(0).toUpperCase()}
+                  </span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[86vw] max-w-sm">
+                <SheetHeader className="text-left">
+                  <SheetTitle>Account</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4">
+                  {accountMenuContent}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+
+          <div className="pb-3">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-full border border-border/70 bg-card px-3 py-2 shadow-sm">
+              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
+              <span className="min-w-0 flex-1 truncate text-center text-sm font-semibold">{pageTitle}</span>
+              <Menu className="h-5 w-5 shrink-0 text-muted-foreground" />
+            </div>
+            <SearchBar />
+          </div>
         </div>
-      </div>      
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-40 sm:px-6 md:py-6 lg:px-8">
         {children}
       </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-background/85 md:hidden">
+        <div className="grid h-16 grid-cols-5 px-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = getIsActive(item.match);
+            return (
+              <button
+                key={item.path}
+                type="button"
+                onClick={() => handleNavigate(item.path)}
+                className={cn(
+                  "flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[0.7rem] font-medium transition-colors",
+                  active ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-8 w-10 items-center justify-center rounded-full transition-colors",
+                    active ? "bg-primary/12" : "bg-transparent"
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 };

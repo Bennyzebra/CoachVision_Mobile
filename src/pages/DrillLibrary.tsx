@@ -31,34 +31,34 @@ const DrillLibrary = () => {
   const focuses: Array<DrillFocus | "all"> = ["all", "offense", "defense", "passing", "conditioning"];
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-4">
+    <div className="space-y-5 sm:space-y-6">
+      <div className="sticky top-0 z-20 -mx-4 space-y-4 border-b bg-background/95 px-4 pb-4 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pb-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search drills..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+            className="h-12 pl-10 text-base"
           />
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Filter className="h-4 w-4 text-muted-foreground" />
+        <div className="flex touch-scroll items-center gap-2 overflow-x-auto pb-1">
+          <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
           {focuses.map((focus) => (
             <Button
               key={focus}
               variant={focusFilter === focus ? "default" : "outline"}
               size="sm"
               onClick={() => setFocusFilter(focus)}
-              className="capitalize"
+              className="h-10 shrink-0 rounded-full px-4 capitalize"
             >
               {focus}
             </Button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex min-h-11 items-center gap-2">
           <Switch
             id="show-added"
             checked={showAdded}
@@ -80,7 +80,7 @@ const DrillLibrary = () => {
       )}
 
       {drillsLoading ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="space-y-3">
               <Skeleton className="h-40 w-full" />
@@ -90,11 +90,11 @@ const DrillLibrary = () => {
           ))}
         </div>
       ) : filteredDrills.length === 0 ? (
-        <div className="text-center py-12">
+        <div className="rounded-xl border border-dashed py-12 text-center">
           <p className="text-muted-foreground">No drills found</p>
         </div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
           {filteredDrills.map((drill) => (
             <DrillCard
               key={drill.id}

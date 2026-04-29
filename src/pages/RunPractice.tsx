@@ -353,7 +353,7 @@ const RunPractice = () => {
   const seconds = totalTimeRemaining % 60;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl space-y-5 sm:space-y-6">
     
 
       {/* Time Saved Toast Notification */}
@@ -398,18 +398,18 @@ const RunPractice = () => {
         </div>
       </div>
       
-      <Card className="border-2">
-        <CardHeader className="bg-muted/30 border-b">
-          <div className="flex items-center justify-between">
+      <Card className="rounded-xl border-2">
+        <CardHeader className="border-b bg-muted/30 p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
               Practice
             </CardTitle>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {/* Ahead of Schedule Badge */}
               {timeSaved > 0 && (
                 <Badge 
-                  className="text-base font-semibold bg-green-600 hover:bg-green-700 text-white gap-1.5 animate-in fade-in duration-300"
+                  className="gap-1.5 bg-green-600 text-sm font-semibold text-white animate-in fade-in duration-300 hover:bg-green-700 sm:text-base"
                 >
                   <Zap className="h-4 w-4" />
                   {Math.floor(timeSaved / 60)}:{String(timeSaved % 60).padStart(2, "0")} ahead
@@ -418,30 +418,30 @@ const RunPractice = () => {
               {/* Behind Schedule Badge */}
               {timeBehind > 0 && (
                 <Badge 
-                  className="text-base font-semibold bg-red-600 hover:bg-red-700 text-white gap-1.5 animate-in fade-in duration-300"
+                  className="gap-1.5 bg-red-600 text-sm font-semibold text-white animate-in fade-in duration-300 hover:bg-red-700 sm:text-base"
                 >
                   <Clock className="h-4 w-4" />
                   {Math.floor(timeBehind / 60)}:{String(timeBehind % 60).padStart(2, "0")} behind
                 </Badge>      
               )}              
               {drillSequence.length > 0 && (
-                <Badge variant="secondary" className="text-base font-semibold">
+                <Badge variant="secondary" className="text-sm font-semibold sm:text-base">
                   Drill {currentDrillIndex + 1} of {drillSequence.length}
                 </Badge>
               )}
-              <Badge variant="outline" className="text-base">
+              <Badge variant="outline" className="text-sm sm:text-base">
                 {totalDurationMinutes} minutes total
               </Badge>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-8 space-y-8">
+        <CardContent className="space-y-6 p-4 sm:space-y-8 sm:p-8">
           <div className="flex justify-center">
-            <div className="flex items-center gap-2 rounded-full bg-primary/5 border border-primary/10 p-1">
+            <div className="flex w-full items-center gap-2 rounded-full border border-primary/10 bg-primary/5 p-1 sm:w-auto">
               <Button
               size="sm"
                 variant={timerMode === "total" ? "default" : "ghost"}
-                className="rounded-full"
+                className="h-10 flex-1 rounded-full sm:flex-none"
                 onClick={() => setTimerMode("total")}
               >
                 Total Timer
@@ -449,7 +449,7 @@ const RunPractice = () => {
               <Button
                 size="sm"
                 variant={timerMode === "drill" ? "default" : "ghost"}
-                className="rounded-full"
+                className="h-10 flex-1 rounded-full sm:flex-none"
                 onClick={() => setTimerMode("drill")}
               >
                 Drill-by-Drill
@@ -576,7 +576,7 @@ const RunPractice = () => {
             <div className="text-center space-y-6">
               <div className="py-6">
                 <div
-                  className={`text-8xl font-bold tabular-nums drop-shadow-sm ${
+                  className={`text-6xl font-bold tabular-nums drop-shadow-sm sm:text-8xl ${
                     totalTimeRemaining === 0
                       ? "text-green-600"
                       : totalTimeRemaining < 300
@@ -586,11 +586,11 @@ const RunPractice = () => {
                 >
                   {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
                 </div>
-                <p className="text-muted-foreground mt-4 text-lg">
+                <p className="mt-4 text-base text-muted-foreground sm:text-lg">
                   {totalTimeRemaining === 0 ? "Practice Complete!" : "Overall time remaining"}
                 </p>
                 {timeSaved > 0 && totalTimeRemaining > 0 && (
-                  <div className="mt-4 inline-flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 rounded-full px-4 py-2">
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-4 py-2 text-green-700">
                     <Zap className="h-4 w-4" />
                     <span className="font-semibold">
                       {Math.floor(timeSaved / 60)}:{String(timeSaved % 60).padStart(2, "0")} ahead of schedule
@@ -618,7 +618,7 @@ const RunPractice = () => {
             <div className="space-y-6">
               <div className="text-center space-y-3">
                 <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total Clock</div>
-                <div className="text-5xl font-bold text-primary tabular-nums">
+                <div className="text-4xl font-bold tabular-nums text-primary sm:text-5xl">
                   {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
                 </div>
                 <p className="text-sm text-muted-foreground">Practice time remaining</p>
@@ -637,7 +637,7 @@ const RunPractice = () => {
                   <p className="text-xs uppercase tracking-[0.2em] text-primary/80">
                     Current Drill{drillSequence.length > 0 && ` • ${currentDrillIndex + 1} of ${drillSequence.length}`}
                   </p>
-                  <h3 className="text-2xl font-bold text-secondary">
+                  <h3 className="text-xl font-bold text-secondary sm:text-2xl">
                     {currentDrill?.name || "No drills in this practice"}
                   </h3>
                   {currentDrill?.segment && (
@@ -650,7 +650,7 @@ const RunPractice = () => {
 
              <div className="overflow-hidden">
                 <div
-                  className={`rounded-2xl border border-secondary/40 bg-secondary/5 p-6 text-center space-y-3 transition-all duration-300 ease-out ${
+                    className={`space-y-3 rounded-2xl border border-secondary/40 bg-secondary/5 p-4 text-center transition-all duration-300 ease-out sm:p-6 ${
                     slideState === "sliding-out"
                       ? "-translate-x-full opacity-0"
                       : slideState === "sliding-in"
@@ -659,7 +659,7 @@ const RunPractice = () => {
                   }`}
                 >
                   <p className="text-sm font-semibold uppercase tracking-[0.15em] text-secondary">Drill Timer</p>
-                  <div className="text-6xl font-bold tabular-nums text-secondary">
+                  <div className="text-5xl font-bold tabular-nums text-secondary sm:text-6xl">
                     {String(drillMinutes).padStart(2, "0")}:{String(drillSeconds).padStart(2, "0")}
                   </div>
                   <p className="text-muted-foreground text-sm">
@@ -670,7 +670,7 @@ const RunPractice = () => {
                   <div className="flex flex-col items-center gap-2">
                     <Button
                       variant="secondary"
-                      className="gap-2"
+                      className="h-12 w-full gap-2 sm:w-auto"
                       onClick={handleNextDrill}
                       disabled={isLastDrill || isAnimating}
                     >
@@ -703,17 +703,17 @@ const RunPractice = () => {
           {totalTimeRemaining === 0 && !showFeedback && (
             <div className="space-y-3 text-center">
               <p className="text-green-700 font-semibold">Great work! Ready to leave feedback?</p>
-              <Button size="lg" className="gap-2 px-8" onClick={handleShowFeedback}>
+              <Button size="lg" className="h-12 w-full gap-2 px-8 sm:w-auto" onClick={handleShowFeedback}>
                 <CheckCircle2 className="h-5 w-5" />
                 Leave Feedback
               </Button>
             </div>
                 )}
 
-          <div className="flex justify-center gap-3">
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 flex justify-center gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
             <Button
               size="lg"
-              className="gap-2 px-8"
+              className="h-14 flex-1 gap-2 px-8 sm:flex-none"
               onClick={() => setIsRunning(!isRunning)}
               disabled={totalTimeRemaining === 0}
             >
@@ -733,6 +733,7 @@ const RunPractice = () => {
             <Button
               variant="outline"
               size="icon"
+              className="h-14 w-14"
               onClick={() => {
                 setTotalTimeRemaining(totalDurationMinutes * 60);
                 setCurrentDrillIndex(0);
@@ -749,7 +750,7 @@ const RunPractice = () => {
               <RotateCcw className="h-5 w-5" />
             </Button>
 
-            <Button variant="outline" size="icon" onClick={handleEndTimer}>
+            <Button variant="outline" size="icon" className="h-14 w-14" onClick={handleEndTimer}>
               <Square className="h-5 w-5" />
             </Button>
           </div>
@@ -758,14 +759,14 @@ const RunPractice = () => {
 
       {showFeedback && (
         <div ref={feedbackRef}>
-          <Card className="border-2 border-primary">
-            <CardHeader className="bg-primary/5">
+          <Card className="rounded-xl border-2 border-primary">
+            <CardHeader className="bg-primary/5 p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2">
                 <Star className="h-5 w-5 text-primary" />
                 Post-Practice Feedback
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-6 space-y-6">
+            <CardContent className="space-y-6 p-4 sm:p-6">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="rating">Rate this practice plan</Label>
@@ -798,7 +799,7 @@ const RunPractice = () => {
                   value={feedbackNotes}
                   onChange={(e) => setFeedbackNotes(e.target.value)}
                   rows={4}
-                  className="resize-none"
+                  className="min-h-32 resize-none"
                 />
               </div>
 
@@ -806,7 +807,7 @@ const RunPractice = () => {
                 onClick={handleSubmitFeedback}
                 disabled={isSubmitting}
                 size="lg"
-                className="w-full gap-2"
+                className="h-12 w-full gap-2"
               >
                 <CheckCircle2 className="h-5 w-5" />
                 {isSubmitting ? "Submitting..." : "Submit Feedback"}

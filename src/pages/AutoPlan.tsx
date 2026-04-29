@@ -982,9 +982,9 @@ setPracticeDefaults(normalizedDefaults);
 
   if (generatedPlan) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-start justify-between">
-          <div>
+      <div className="space-y-5 sm:space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <Sheet
               open={isTitleSheetOpen}
               onOpenChange={(open) => {
@@ -995,7 +995,7 @@ setPracticeDefaults(normalizedDefaults);
               }}
             >
               <SheetTrigger asChild>
-                <Button variant="outline" className="mb-3 gap-2">
+                <Button variant="outline" className="mb-3 h-11 w-full gap-2 sm:w-auto">
                   <Pencil className="h-4 w-4" />
                   {practiceTitle.trim() ? "Edit Practice Name" : "Name Practice"}
                 </Button>
@@ -1019,7 +1019,7 @@ setPracticeDefaults(normalizedDefaults);
                     />
                   </div>
 
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button variant="outline" onClick={() => setIsTitleSheetOpen(false)}>
                       Cancel
                     </Button>
@@ -1036,8 +1036,8 @@ setPracticeDefaults(normalizedDefaults);
               </SheetContent>
             </Sheet>
             
-            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-              <Sparkles className="h-8 w-8 text-primary" />
+            <h1 className="mb-2 flex items-center gap-2 text-2xl font-bold leading-tight sm:text-3xl">
+              <Sparkles className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
               {practiceTitle.trim() || "Your AI-Generated Practice Plan"}
             </h1>
             <p className="text-muted-foreground">
@@ -1046,6 +1046,7 @@ setPracticeDefaults(normalizedDefaults);
           </div>
           <Button
             variant="outline"
+            className="h-11 w-full sm:w-auto"
             onClick={() => {
               setGeneratedPlan(null);
               setPracticeTitle("");
@@ -1073,10 +1074,10 @@ setPracticeDefaults(normalizedDefaults);
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5 sm:space-y-8">
      {/* Search-Driven Planning */}
-      <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
-        <CardContent className="py-4">
+      <Card className="rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+        <CardContent className="p-3 sm:py-4">
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -1086,7 +1087,7 @@ setPracticeDefaults(normalizedDefaults);
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                className="pl-10 pr-4 h-12 text-base bg-background transition duration-200 ease-out hover:shadow-md hover:shadow-primary/20 hover:border-primary/40 hover:scale-[1.01] focus-visible:scale-[1.01]"
+                className="h-12 bg-background pl-10 pr-10 text-base transition duration-200 ease-out hover:border-primary/40 hover:shadow-md hover:shadow-primary/20 focus-visible:scale-[1.01] sm:pr-4 sm:hover:scale-[1.01]"
                 />
               {isParsingIntent && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1116,9 +1117,9 @@ setPracticeDefaults(normalizedDefaults);
         </CardContent>
       </Card>      
       {/* Practice Configuration - AI Form Style */}
-      <Card className="border-2">
-        <CardHeader className="border-b bg-muted/30">
-          <CardTitle className="flex items-center gap-2">
+      <Card className="rounded-xl border-2">
+        <CardHeader className="border-b bg-muted/30 p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
             <Zap className="h-5 w-5 text-primary" />
             Practice Configuration
           </CardTitle>
@@ -1126,17 +1127,17 @@ setPracticeDefaults(normalizedDefaults);
             Configure your practice in 3 simple steps
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6 space-y-8">
+        <CardContent className="space-y-7 p-4 sm:space-y-8 sm:p-6">
           {/* Step 1: Duration */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
                 1
               </div>
               <Label className="text-base font-semibold">Select Duration</Label>
             </div>
-            <div className="ml-11 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3 sm:ml-11">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-muted-foreground">Practice length</span>
                 <div className="flex items-center gap-2">
                   <span className="text-3xl font-bold text-primary">{duration}</span>
@@ -1162,17 +1163,17 @@ setPracticeDefaults(normalizedDefaults);
           {/* Step 2: Focus Areas */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
                 2
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-base font-semibold">Choose Focus Areas</Label>
                 <p className="text-sm text-muted-foreground">
                   Select all that apply, then star one as your primary focus
                 </p>
               </div>
             </div>
-            <div className="ml-11">
+            <div className="sm:ml-11">
               <div className="flex flex-col gap-2">
                 {focusOptions.map((option) => {
                   const isSelected = selectedFocuses.includes(option.id);
@@ -1181,7 +1182,7 @@ setPracticeDefaults(normalizedDefaults);
                   return (
                     <div
                       key={option.id}
-                      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm transition-all ${
+                      className={`flex cursor-pointer flex-col gap-3 rounded-xl border px-4 py-3 text-sm transition-all sm:flex-row sm:items-center sm:justify-between ${
                         isPrimary
                           ? "border-primary/60 bg-primary/10 shadow-sm"
                           : isSelected
@@ -1191,7 +1192,7 @@ setPracticeDefaults(normalizedDefaults);
                       onClick={() => toggleFocusSelection(option.id)}                      
                     >
                       <label
-                        className="flex items-center gap-3 text-left"
+                        className="flex min-h-11 items-center gap-3 text-left"
                         onClick={(event) => event.stopPropagation()}
                       >
                       <Checkbox
@@ -1211,7 +1212,7 @@ setPracticeDefaults(normalizedDefaults);
                       </label>
                       <button
                         type="button"
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition sm:w-auto ${
                           isPrimary
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary"
@@ -1237,25 +1238,25 @@ setPracticeDefaults(normalizedDefaults);
           {/* Step 3: Goals */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
                 3
               </div>
               <Label className="text-base font-semibold">Add Today's Goals</Label>
             </div>
-            <div className="ml-11 space-y-2">
+            <div className="space-y-2 sm:ml-11">
               <div className="relative">
                 <Textarea
                   placeholder="E.g., fix turnovers, prep for Friday opponent, improve press break, increase communication…"
                   value={goals}
                   onChange={handleGoalsChange}
                   rows={3}
-                  className="resize-none"
+                  className="min-h-28 resize-none pb-14 sm:pb-3"
                 />
                 {showApplyFromSearch && parsedIntent?.suggested_goals && (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="absolute right-2 top-2 gap-1.5 text-xs"
+                    className="absolute bottom-2 right-2 gap-1.5 text-xs sm:bottom-auto sm:top-2"
                     onClick={handleApplyGoalsFromSearch}
                   >
                     <Pencil className="h-3 w-3" />
@@ -1274,8 +1275,8 @@ setPracticeDefaults(normalizedDefaults);
       </Card>
 
       {/* Suggested Drills Section */}
-      <Card className="border-2">
-        <CardHeader className="pb-3">
+      <Card className="rounded-xl border-2">
+        <CardHeader className="p-4 pb-3 sm:p-6 sm:pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Target className="h-5 w-5 text-primary" />
             Suggested Drills for This Focus
@@ -1286,7 +1287,7 @@ setPracticeDefaults(normalizedDefaults);
               : "Type what you want to work on above to see suggested drills."}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           {!searchText.trim() ? (
             <div className="text-center py-8 text-muted-foreground">
               <Search className="h-10 w-10 mx-auto mb-3 opacity-50" />
@@ -1352,12 +1353,12 @@ setPracticeDefaults(normalizedDefaults);
         </CardContent>
       </Card>
       {/* Generate Button - BIG and CENTERED */}
-      <div className="py-4">
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-4">
         <Button
           onClick={generatePlan}
           size="lg"
           disabled={isGenerating}
-          className="w-full h-16 text-lg gap-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-xl hover:shadow-2xl transition-all duration-300"
+          className="h-14 w-full gap-3 bg-gradient-to-r from-primary to-primary/80 text-base shadow-xl transition-all duration-300 hover:from-primary/90 hover:to-primary hover:shadow-2xl sm:h-16 sm:text-lg"
         >
           {isGenerating ? (
             <>
@@ -1371,7 +1372,7 @@ setPracticeDefaults(normalizedDefaults);
             </>
           )}
         </Button>
-        <p className="text-center text-sm text-muted-foreground mt-3">
+        <p className="mt-3 text-center text-xs text-muted-foreground sm:text-sm">
           {isGenerating
             ? "AI is analyzing your team data and creating the perfect practice plan..."
             : "Takes less than 30 seconds. Uses over 50 data points from your team."}

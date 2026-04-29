@@ -86,7 +86,7 @@ const SortableDrillCard = ({
         dragHandle={
           <button
             type="button"
-            className="rounded-md p-1 text-muted-foreground/70 opacity-70 transition-all hover:bg-muted/60 hover:text-foreground group-hover:opacity-100"
+            className="tap-target rounded-md p-2 text-muted-foreground/70 opacity-100 transition-all hover:bg-muted/60 hover:text-foreground md:opacity-70 md:group-hover:opacity-100"
             {...attributes}
             {...listeners}
             aria-label="Reorder drill"
@@ -146,10 +146,10 @@ export const GeneratedPlan = ({
     const drillIds = drills.map((drill) => drill.id);    
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold">{title}</h3>
-          <Badge variant="secondary" className="gap-1">
+      <section className="space-y-3">
+        <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between border-y border-border/70 bg-background/95 px-4 py-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0">
+          <h3 className="text-lg font-semibold sm:text-xl">{title}</h3>
+          <Badge variant="secondary" className="gap-1 px-3 py-1.5">
             <Clock className="h-3 w-3" />
             {totalTime} min
           </Badge>
@@ -160,7 +160,7 @@ export const GeneratedPlan = ({
           onDragEnd={(event) => handleDragEnd(segment, drills, event)}
         >
           <SortableContext items={drillIds} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
               {drills.map((drill) => (
                 <SortableDrillCard
                   key={drill.id}
@@ -176,7 +176,7 @@ export const GeneratedPlan = ({
             </div>
           </SortableContext>
         </DndContext>
-      </div>
+      </section>
     );
   };
 
@@ -186,20 +186,20 @@ export const GeneratedPlan = ({
     calculateTotalTime(plan.cool_down);
 
   return (
-    <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Practice Plan Overview</CardTitle>
-            <Badge className="gap-1 text-base">
+    <div className="space-y-6 sm:space-y-8">
+      <Card className="rounded-xl">
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-xl">Practice Plan Overview</CardTitle>
+            <Badge className="w-fit gap-1 px-3 py-1.5 text-base">
               <Clock className="h-4 w-4" />
               Total: {totalPlanTime} min
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
           <div className="prose prose-sm max-w-none">
-            <p className="text-muted-foreground">{plan.coach_notes}</p>
+            <p className="text-sm leading-6 text-muted-foreground sm:text-base">{plan.coach_notes}</p>
           </div>
         </CardContent>
       </Card>
@@ -212,12 +212,12 @@ export const GeneratedPlan = ({
       {plan.cool_down.length > 0 && renderSection("Cool Down", plan.cool_down, "cool_down")}
       
       {onSaveAndContinue && (
-        <div className="sticky bottom-0 bg-background pt-4 pb-6 border-t">
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 pb-3 pt-3 backdrop-blur md:bottom-0 md:mx-0 md:px-0 md:pb-6 md:pt-4">
           <Button
             onClick={onSaveAndContinue}
             disabled={isSaving}
             size="lg"
-            className="w-full h-14 text-lg gap-3"
+            className="h-14 w-full gap-3 text-base sm:text-lg"
           >
             <Play className="h-5 w-5" />
             {isSaving ? "Saving..." : "Save and Continue to Practice"}

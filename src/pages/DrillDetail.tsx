@@ -42,17 +42,17 @@ const DrillDetail = () => {
   const isAdded = state.plan.some((p) => p.drillId === drill.id);
 
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate(-1)} className="gap-2">
+    <div className="space-y-5 sm:space-y-6">
+      <Button variant="ghost" onClick={() => navigate(-1)} className="h-11 gap-2">
         <ArrowLeft className="h-4 w-4" />
         Back
       </Button>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold mb-3">{drill.name}</h1>
+      <Card className="rounded-xl">
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <h1 className="mb-3 text-2xl font-bold leading-tight sm:text-3xl">{drill.name}</h1>
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge className={focusColors[drill.focus]}>
                   {drill.focus}
@@ -73,7 +73,7 @@ const DrillDetail = () => {
             {!shouldHideAddToPlan && (
               <Button
                 size="lg"
-                className="gap-2"
+                className="h-12 w-full gap-2 sm:w-auto"
                 onClick={() => {
                   addToPlan(drill.id);
                   navigate("/plan");
@@ -96,7 +96,7 @@ const DrillDetail = () => {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 p-4 pt-0 sm:p-6 sm:pt-0">
           <div>
             <h3 className="font-semibold mb-2">Default Duration</h3>
             <p className="text-lg">{drill.duration} minutes</p>
@@ -104,7 +104,7 @@ const DrillDetail = () => {
 
           <div>
             <h3 className="font-semibold mb-2">Description</h3>
-            <p className="text-muted-foreground">{drill.description}</p>
+            <p className="leading-7 text-muted-foreground">{drill.description}</p>
           </div>
 
           {drill.cues && drill.cues.length > 0 && (

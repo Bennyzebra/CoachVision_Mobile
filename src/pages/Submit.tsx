@@ -168,23 +168,24 @@ const Submit = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <div>
         <p className="text-muted-foreground">
           Add a drill to your library and share it to the community
         </p>
       </div>
 
-      <Card>
-        <CardContent className="p-6">        
+      <Card className="rounded-xl">
+        <CardContent className="p-4 sm:p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Card>
-              <CardContent className="space-y-4 p-6">
+            <Card className="rounded-xl">
+              <CardContent className="space-y-4 p-4 sm:p-6">
                 <h2 className="text-lg font-semibold">Basics</h2>
                 <div>
                   <Label htmlFor="name">Drill Name *</Label>
                   <Input
                     id="name"
+                    className="h-11"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
@@ -199,7 +200,7 @@ const Submit = () => {
                       setFormData({ ...formData, focus: value })
                     }
                   >
-                    <SelectTrigger id="focus">
+                    <SelectTrigger id="focus" className="h-11">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -215,6 +216,7 @@ const Submit = () => {
                   <Label htmlFor="duration">Default Duration (minutes) *</Label>
                   <Input
                     id="duration"
+                    className="h-11"
                     type="number"
                     min="1"
                     max="60"
@@ -234,6 +236,7 @@ const Submit = () => {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
+                    className="min-h-28"
                     required
                   />
                 </div>
@@ -246,6 +249,7 @@ const Submit = () => {
                     value={formData.cues}
                     onChange={(e) => setFormData({ ...formData, cues: e.target.value })}
                     rows={4}
+                    className="min-h-32"
                   />
                 </div>
 
@@ -253,6 +257,7 @@ const Submit = () => {
                   <Label htmlFor="tags">Tags (comma-separated)</Label>                  
                   <Input
                     id="tags"
+                    className="h-11"
                     placeholder="e.g., fundamentals, small-group, guard"
                     value={formData.tags}
                     onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
@@ -261,14 +266,15 @@ const Submit = () => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="space-y-4 p-6">
+            <Card className="rounded-xl">
+              <CardContent className="space-y-4 p-4 sm:p-6">
                 <h2 className="text-lg font-semibold">Logistics</h2>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <Label htmlFor="minPlayers">Minimum Players</Label>
                     <Input
                       id="minPlayers"
+                      className="h-11"
                       type="number"
                       min="1"
                       placeholder="2"
@@ -280,6 +286,7 @@ const Submit = () => {
                     <Label htmlFor="maxPlayers">Maximum Players</Label>
                     <Input
                       id="maxPlayers"
+                      className="h-11"
                       type="number"
                       min="1"
                       placeholder="10"
@@ -291,6 +298,7 @@ const Submit = () => {
                     <Label htmlFor="optimalGroupSize">Optimal Group Size</Label>
                     <Input
                       id="optimalGroupSize"
+                      className="h-11"
                       type="number"
                       min="1"
                       placeholder="5"
@@ -303,8 +311,8 @@ const Submit = () => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="space-y-4 p-6">
+            <Card className="rounded-xl">
+              <CardContent className="space-y-4 p-4 sm:p-6">
                 <h2 className="text-lg font-semibold">Optional</h2>
                 <Accordion type="single" collapsible>
                   <AccordionItem value="optional-details" className="border-none">
@@ -315,6 +323,7 @@ const Submit = () => {
                           <Label htmlFor="mediaUrl">Media Link (optional)</Label>
                           <Input
                             id="mediaUrl"
+                            className="h-11"
                             type="url"
                             placeholder="https://..."
                             value={formData.mediaUrl}
@@ -329,7 +338,7 @@ const Submit = () => {
                               value={formData.intensity}
                               onValueChange={(value) => setFormData({ ...formData, intensity: value })}
                             >
-                              <SelectTrigger id="intensity">
+                              <SelectTrigger id="intensity" className="h-11">
                                 <SelectValue placeholder="Select intensity" />
                               </SelectTrigger>
                               <SelectContent>
@@ -350,6 +359,7 @@ const Submit = () => {
                               <Label htmlFor="positionG" className="text-xs text-muted-foreground">Guards</Label>
                               <Input
                                 id="positionG"
+                                className="h-11"
                                 type="number"
                                 min="0"
                                 max="1"
@@ -371,6 +381,7 @@ const Submit = () => {
                               <Label htmlFor="positionF" className="text-xs text-muted-foreground">Forwards</Label>
                               <Input
                                 id="positionF"
+                                className="h-11"
                                 type="number"
                                 min="0"
                                 max="1"
@@ -392,6 +403,7 @@ const Submit = () => {
                               <Label htmlFor="positionC" className="text-xs text-muted-foreground">Centers</Label>
                               <Input
                                 id="positionC"
+                                className="h-11"
                                 type="number"
                                 min="0"
                                 max="1"
@@ -412,7 +424,7 @@ const Submit = () => {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-h-11 items-center gap-2">
                           <Checkbox
                             id="requiresFullCourt"
                             checked={formData.requiresFullCourt}
@@ -429,7 +441,7 @@ const Submit = () => {
               </CardContent>
             </Card>
 
-            <Button type="submit" size="lg" className="w-full">
+            <Button type="submit" size="lg" className="h-12 w-full">
               Submit Drill for Review
             </Button>
           </form>

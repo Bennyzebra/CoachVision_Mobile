@@ -170,21 +170,17 @@ const Auth = () => {
   };  
   
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
-      <Card className="w-full max-w-md">
+    <div className="mobile-safe-top mobile-safe-bottom flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
+      <Card className="w-full max-w-md rounded-xl">
         <CardHeader className="pb-4 pt-2 text-left">
-        <img src={logo} alt="CoachVision" className="h-72 w-auto mx-auto mb-0" />
+        <img src={logo} alt="CoachVision" className="mx-auto mb-0 h-44 w-auto sm:h-72" />
           <CardTitle
-            className={
-              isLogin
-                ? "mb-0 text-[1.65rem] font-normal leading-none text-white"
-              : "mb-1"
-            }
+            className={isLogin ? "mb-0 text-2xl font-normal leading-tight text-foreground" : "mb-1"}
           >
             {isLogin ? "Welcome to CoachVision" : "Join CoachVision"}
           </CardTitle>
           {isLogin && (
-            <p className="-mt-1 text-[1.3rem] leading-tight text-white/60">
+            <p className="mt-1 text-base leading-tight text-muted-foreground sm:text-[1.3rem]">
       Plan in minutes. Practice smarter. Win more.
             </p>
     )}
@@ -197,7 +193,7 @@ const Auth = () => {
           <CardContent className="pt-0 pb-3">
           <Button
             type="button"
-            className="w-full gap-2"
+            className="h-11 w-full gap-2"
             variant="outline"
             onClick={handleGoogleSignIn}
             disabled={loading || googleLoading}
@@ -248,6 +244,7 @@ const Auth = () => {
                   placeholder="John Smith"
                   value={coachName}
                   onChange={(e) => setCoachName(e.target.value)}
+                  className="h-11"
                   required
                 />
               </div>
@@ -258,6 +255,7 @@ const Auth = () => {
                 id="email"
                 type="email"
                 placeholder="coach@example.com"
+                className="h-11"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -271,6 +269,7 @@ const Auth = () => {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="h-11"
                 required
                 minLength={6}
               />
@@ -285,7 +284,7 @@ const Auth = () => {
                 </button>
               )}              
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="h-11 w-full" disabled={loading}>
               {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
             </Button>
           </form>
