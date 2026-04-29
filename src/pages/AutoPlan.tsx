@@ -1118,29 +1118,29 @@ setPracticeDefaults(normalizedDefaults);
       </Card>      
       {/* Practice Configuration - AI Form Style */}
       <Card className="rounded-xl border-2">
-        <CardHeader className="border-b bg-muted/30 p-4 sm:p-6">
-          <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
+        <CardHeader className="border-b bg-muted/30 p-3 sm:p-5">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
             <Zap className="h-5 w-5 text-primary" />
             Practice Configuration
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-sm">
             Configure your practice in 3 simple steps
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-7 p-4 sm:space-y-8 sm:p-6">
+        <CardContent className="space-y-5 p-3 sm:space-y-7 sm:p-5">
           {/* Step 1: Duration */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
                 1
               </div>
               <Label className="text-base font-semibold">Select Duration</Label>
             </div>
-            <div className="space-y-3 sm:ml-11">
+            <div className="space-y-2 sm:ml-11">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-muted-foreground">Practice length</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-3xl font-bold text-primary">{duration}</span>
+                  <span className="text-2xl font-bold text-primary sm:text-3xl">{duration}</span>
                   <span className="text-muted-foreground">minutes</span>
                 </div>
               </div>
@@ -1161,20 +1161,20 @@ setPracticeDefaults(normalizedDefaults);
           </div>
 
           {/* Step 2: Focus Areas */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
                 2
               </div>
               <div className="min-w-0">
                 <Label className="text-base font-semibold">Choose Focus Areas</Label>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground sm:text-sm">
                   Select all that apply, then star one as your primary focus
                 </p>
               </div>
             </div>
             <div className="sm:ml-11">
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
                 {focusOptions.map((option) => {
                   const isSelected = selectedFocuses.includes(option.id);
                   const isPrimary = primaryFocus === option.id;
@@ -1182,7 +1182,7 @@ setPracticeDefaults(normalizedDefaults);
                   return (
                     <div
                       key={option.id}
-                      className={`flex cursor-pointer flex-col gap-3 rounded-xl border px-4 py-3 text-sm transition-all sm:flex-row sm:items-center sm:justify-between ${
+                      className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm transition-all ${
                         isPrimary
                           ? "border-primary/60 bg-primary/10 shadow-sm"
                           : isSelected
@@ -1192,7 +1192,7 @@ setPracticeDefaults(normalizedDefaults);
                       onClick={() => toggleFocusSelection(option.id)}                      
                     >
                       <label
-                        className="flex min-h-11 items-center gap-3 text-left"
+                        className="flex min-h-10 min-w-0 flex-1 items-center gap-3 text-left"
                         onClick={(event) => event.stopPropagation()}
                       >
                       <Checkbox
@@ -1204,7 +1204,7 @@ setPracticeDefaults(normalizedDefaults);
                           <img
                             src={option.iconSrc}
                             alt={option.iconAlt}
-                            className="h-6 w-6"
+                            className="h-5 w-5 sm:h-6 sm:w-6"
                             loading="lazy"
                           />
                           {option.label}
@@ -1212,10 +1212,10 @@ setPracticeDefaults(normalizedDefaults);
                       </label>
                       <button
                         type="button"
-                        className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition sm:w-auto ${
+                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition ${
                           isPrimary
                             ? "border-primary bg-primary text-primary-foreground"
-                            : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary"
+                            : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:bg-primary/5 hover:text-primary"
                         }`}
                         onMouseDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -1225,8 +1225,7 @@ setPracticeDefaults(normalizedDefaults);
                         aria-pressed={isPrimary}
                         aria-label={`Set ${option.label} as primary focus`}
                       >
-                        <Star className="h-3.5 w-3.5" />
-                        {isPrimary ? "Primary" : "Set primary"}
+                        <Star className={`h-4 w-4 ${isPrimary ? "fill-current" : ""}`} />
                       </button>
                     </div>
                   );
@@ -1236,9 +1235,9 @@ setPracticeDefaults(normalizedDefaults);
           </div>
 
           {/* Step 3: Goals */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
                 3
               </div>
               <Label className="text-base font-semibold">Add Today's Goals</Label>
