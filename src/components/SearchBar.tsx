@@ -31,7 +31,7 @@ export const SearchBar = () => {
 
   const getStatusLabel = (pathname: string) => {
     if (pathname === "/") {
-      return "Generate Practice Plan";
+      return "Practice Plan";
     }
     if (pathname.startsWith("/plan")) {
       return "Practice Plan";
