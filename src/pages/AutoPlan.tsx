@@ -69,6 +69,12 @@ type FocusArea = (typeof focusAreas)[number];
 
 const GENERATED_PLAN_STORAGE_KEY = "coachvision-auto-plan-generated";
 const GENERATED_PLAN_TITLE_STORAGE_KEY = "coachvision-auto-plan-title";
+const MIN_PRACTICE_DURATION = 10;
+const MAX_PRACTICE_DURATION = 240;
+
+const clampPracticeDuration = (value: number) =>
+  Math.min(MAX_PRACTICE_DURATION, Math.max(MIN_PRACTICE_DURATION, value));
+
 // Extended focus options for the new UI
 const focusOptions = [
   { id: "offense", label: "Offense", iconSrc: "/focus-icons/offense.svg", iconAlt: "Offense" },
@@ -186,10 +192,16 @@ const AutoPlan = () => {
     [state.profile]
   );
 
-  const [duration, setDuration] = useState<number>(normalizedDefaults.defaultPracticeLength);
+  const [duration, setDuration] = useState<number>(
+    clampPracticeDuration(normalizedDefaults.defaultPracticeLength)
+  );
+  const [durationDraft, setDurationDraft] = useState(
+    String(clampPracticeDuration(normalizedDefaults.defaultPracticeLength))
+  );
+  const [isEditingDuration, setIsEditingDuration] = useState(false);
   const [practiceDefaults, setPracticeDefaults] = useState(normalizedDefaults);
 
-    // Helper function to find drills by keywords (fallback)
+  // Helper function to find drills by keywords (fallback)
   const findDrillsByKeywords = useCallback((text: string, drills: Drill[]): Drill[] => {
     if (!text.trim() || drills.length === 0) return [];
 
@@ -315,10 +327,18 @@ const AutoPlan = () => {
     }
   }, [practiceTitle]);    
 
-    useEffect(() => {
-setPracticeDefaults(normalizedDefaults);
-    setDuration(normalizedDefaults.defaultPracticeLength);
+  useEffect(() => {
+    setPracticeDefaults(normalizedDefaults);
+    const nextDuration = clampPracticeDuration(normalizedDefaults.defaultPracticeLength);
+    setDuration(nextDuration);
+    setDurationDraft(String(nextDuration));
   }, [normalizedDefaults]);
+
+  useEffect(() => {
+    if (!isEditingDuration) {
+      setDurationDraft(String(duration));
+    }
+  }, [duration, isEditingDuration]);
   
   useEffect(() => {
     const query = searchParams.get("query");
@@ -583,6 +603,33 @@ setPracticeDefaults(normalizedDefaults);
     setGoals(e.target.value);
     if (e.target.value.trim()) {
       setGoalsManuallyEdited(true);
+    }
+  };
+
+  const commitDurationDraft = () => {
+    const parsedDuration = Number.parseInt(durationDraft, 10);
+
+    if (Number.isNaN(parsedDuration)) {
+      setDurationDraft(String(duration));
+      setIsEditingDuration(false);
+      return;
+    }
+
+    const nextDuration = clampPracticeDuration(parsedDuration);
+    setDuration(nextDuration);
+    setDurationDraft(String(nextDuration));
+    setIsEditingDuration(false);
+  };
+
+  const handleDurationInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitDurationDraft();
+    }
+
+    if (event.key === "Escape") {
+      setDurationDraft(String(duration));
+      setIsEditingDuration(false);
     }
   };
 
@@ -1140,22 +1187,47 @@ setPracticeDefaults(normalizedDefaults);
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-muted-foreground">Practice length</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-primary sm:text-3xl">{duration}</span>
+                  {isEditingDuration ? (
+                    <Input
+                      autoFocus
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={durationDraft}
+                      onBlur={commitDurationDraft}
+                      onChange={(event) => setDurationDraft(event.target.value.replace(/\D/g, ""))}
+                      onFocus={(event) => event.target.select()}
+                      onKeyDown={handleDurationInputKeyDown}
+                      aria-label="Practice length in minutes"
+                      className="h-10 w-24 px-2 text-center text-2xl font-bold text-primary sm:text-3xl"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDurationDraft(String(duration));
+                        setIsEditingDuration(true);
+                      }}
+                      className="rounded-md px-1 text-2xl font-bold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-3xl"
+                      aria-label="Edit practice length"
+                    >
+                      {duration}
+                    </button>
+                  )}
                   <span className="text-muted-foreground">minutes</span>
                 </div>
               </div>
               <Slider
                 value={[duration]}
-                min={30}
-                max={150}
+                min={MIN_PRACTICE_DURATION}
+                max={MAX_PRACTICE_DURATION}
                 step={5}
-                onValueChange={(value) => setDuration(value[0])}
+                onValueChange={(value) => setDuration(clampPracticeDuration(value[0]))}
                 className="py-2"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>30 min</span>
-                <span>90 min</span>
-                <span>150 min</span>
+                <span>Shorter</span>
+                <span>Standard</span>
+                <span>Longer</span>
               </div>
             </div>
           </div>
