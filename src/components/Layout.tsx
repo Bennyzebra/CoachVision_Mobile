@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { 
   ChevronDown,
@@ -10,6 +10,8 @@ import {
   ClipboardList,
 } from "lucide-react";
 import logo from "@/assets/CoachVision_Final.png";
+import { MobilePagerContext, type MobilePagerContextValue, type MobilePagerTarget } from "@/components/MobilePagerContext";
+import { MobilePrimaryPager } from "@/components/MobilePrimaryPager";
 import { SearchBar } from "@/components/SearchBar";
 import { useTeam } from "@/contexts/TeamContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,6 +44,10 @@ interface LayoutProps {
 }
 
 type RouteMotionDirection = "left" | "right" | null;
+type DragIntent = "idle" | "horizontal" | "vertical";
+
+const clampPagerProgress = (value: number) => Math.min(1, Math.max(0, value));
+const pagerPaths = ["/", "/drills"] as const;
 
 export const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
@@ -52,7 +58,12 @@ export const Layout = ({ children }: LayoutProps) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileHeaderHidden, setIsMobileHeaderHidden] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [routeMotionDirection, setRouteMotionDirection] = useState<RouteMotionDirection>(null);
+  const routePagerIndex = location.pathname === "/drills" ? 1 : 0;
+  const isPrimaryPagerRoute = location.pathname === "/" || location.pathname === "/drills";
+  const [pagerProgress, setPagerProgress] = useState(routePagerIndex);
+  const [isPagerDragging, setIsPagerDragging] = useState(false);
   const [isThemeSelectOpen, setIsThemeSelectOpen] = useState(false);  
   const [isProfileDropdownHovered, setIsProfileDropdownHovered] = useState(false);  
   const userEmail = profile?.email ?? session?.user?.email ?? "Email not available";
@@ -65,6 +76,16 @@ export const Layout = ({ children }: LayoutProps) => {
   const lastScrollYRef = useRef(0);
   const lastTouchYRef = useRef<number | null>(null);
   const touchVelocityRef = useRef(0);
+  const pagerStartXRef = useRef(0);
+  const pagerStartYRef = useRef(0);
+  const pagerStartProgressRef = useRef(0);
+  const pagerDragIntentRef = useRef<DragIntent>("idle");
+  const pagerScrollPositionsRef = useRef([0, 0]);
+  const currentPagerIndexRef = useRef(routePagerIndex);
+
+  const savePagerScrollPosition = useCallback((index: number) => {
+    pagerScrollPositionsRef.current[index] = window.scrollY;
+  }, []);
 
   useEffect(() => {
     const handleTouchMove = (event: TouchEvent) => {
@@ -113,6 +134,15 @@ export const Layout = ({ children }: LayoutProps) => {
   }, []);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const handleChange = () => setIsMobileViewport(mediaQuery.matches);
+
+    handleChange();
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  useEffect(() => {
     const handleRouteMotion = (event: Event) => {
       const detail = (event as CustomEvent<{ direction?: RouteMotionDirection }>).detail;
       setRouteMotionDirection(detail?.direction === "right" ? "right" : "left");
@@ -127,6 +157,119 @@ export const Layout = ({ children }: LayoutProps) => {
     const timeout = window.setTimeout(() => setRouteMotionDirection(null), 300);
     return () => window.clearTimeout(timeout);
   }, [location.pathname, routeMotionDirection]);
+
+  useEffect(() => {
+    if (!isPrimaryPagerRoute || isPagerDragging) return;
+    currentPagerIndexRef.current = routePagerIndex;
+    setPagerProgress(routePagerIndex);
+  }, [isPagerDragging, isPrimaryPagerRoute, routePagerIndex]);
+
+  const snapToPagerIndex = useCallback(
+    (targetIndex: number) => {
+      const boundedIndex = Math.min(1, Math.max(0, targetIndex));
+      const currentIndex = currentPagerIndexRef.current;
+
+      if (isPrimaryPagerRoute) {
+        savePagerScrollPosition(currentIndex);
+      }
+
+      setIsPagerDragging(false);
+      pagerDragIntentRef.current = "idle";
+      setPagerProgress(boundedIndex);
+      currentPagerIndexRef.current = boundedIndex;
+
+      const targetPath = pagerPaths[boundedIndex];
+      if (location.pathname !== targetPath) {
+        navigate(targetPath);
+      }
+
+      window.requestAnimationFrame(() => {
+        window.scrollTo(0, pagerScrollPositionsRef.current[boundedIndex] ?? 0);
+      });
+    },
+    [isPrimaryPagerRoute, location.pathname, navigate, savePagerScrollPosition]
+  );
+
+  const beginPagerDrag = useCallback((clientX: number, clientY: number) => {
+    if (!isPrimaryPagerRoute || !isMobileViewport) return;
+    pagerStartXRef.current = clientX;
+    pagerStartYRef.current = clientY;
+    pagerStartProgressRef.current = pagerProgress;
+    pagerDragIntentRef.current = "idle";
+  }, [isMobileViewport, isPrimaryPagerRoute, pagerProgress]);
+
+  const updatePagerDrag = useCallback(
+    (clientX: number, clientY: number): DragIntent => {
+      if (!isPrimaryPagerRoute || !isMobileViewport) return "idle";
+
+      const deltaX = clientX - pagerStartXRef.current;
+      const deltaY = clientY - pagerStartYRef.current;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+
+      if (pagerDragIntentRef.current === "idle") {
+        if (Math.max(absX, absY) < 7) return "idle";
+
+        pagerDragIntentRef.current = absX > absY + 4 ? "horizontal" : "vertical";
+
+        if (pagerDragIntentRef.current === "horizontal") {
+          savePagerScrollPosition(currentPagerIndexRef.current);
+          setIsPagerDragging(true);
+        }
+      }
+
+      if (pagerDragIntentRef.current !== "horizontal") {
+        return pagerDragIntentRef.current;
+      }
+
+      const viewportWidth = Math.max(window.innerWidth, 1);
+      const nextProgress = clampPagerProgress(pagerStartProgressRef.current - deltaX / viewportWidth);
+      setPagerProgress(nextProgress);
+      return "horizontal";
+    },
+    [isMobileViewport, isPrimaryPagerRoute, savePagerScrollPosition]
+  );
+
+  const endPagerDrag = useCallback(() => {
+    if (pagerDragIntentRef.current !== "horizontal") {
+      pagerDragIntentRef.current = "idle";
+      setIsPagerDragging(false);
+      return;
+    }
+
+    snapToPagerIndex(pagerProgress >= 0.5 ? 1 : 0);
+  }, [pagerProgress, snapToPagerIndex]);
+
+  const goToPagerPage = useCallback(
+    (target: MobilePagerTarget) => {
+      snapToPagerIndex(target === "library" ? 1 : 0);
+    },
+    [snapToPagerIndex]
+  );
+
+  const mobilePagerContext = useMemo<MobilePagerContextValue>(
+    () => ({
+      activeIndex: Math.round(pagerProgress),
+      progress: pagerProgress,
+      isDragging: isPagerDragging,
+      isPagerRoute: isPrimaryPagerRoute,
+      isMobile: isMobileViewport,
+      beginDrag: beginPagerDrag,
+      updateDrag: updatePagerDrag,
+      endDrag: endPagerDrag,
+      goToPage: goToPagerPage,
+    }),
+    [
+      beginPagerDrag,
+      endPagerDrag,
+      goToPagerPage,
+      isMobileViewport,
+      isPagerDragging,
+      isPrimaryPagerRoute,
+      pagerProgress,
+      updatePagerDrag,
+    ]
+  );
   
   const handleThemeSelectOpenChange = (open: boolean) => {
     if (!open && keepThemeSelectOpenRef.current) {
@@ -249,6 +392,7 @@ export const Layout = ({ children }: LayoutProps) => {
   );
 
   return (
+    <MobilePagerContext.Provider value={mobilePagerContext}>
     <div className="min-h-screen bg-background">
       <nav className="hidden border-b border-border bg-card md:block">
         <div   className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -378,16 +522,20 @@ export const Layout = ({ children }: LayoutProps) => {
       </header>
 
       <main className="mx-auto max-w-7xl overflow-x-hidden px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-24 sm:px-6 md:py-6 lg:px-8">
-        <div
-          key={location.pathname}
-          className={cn(
-            "will-change-transform",
-            routeMotionDirection === "right" && "mobile-screen-slide-right",
-            routeMotionDirection === "left" && "mobile-screen-slide-left"
-          )}
-        >
-          {children}
-        </div>
+        {isMobileViewport && isPrimaryPagerRoute ? (
+          <MobilePrimaryPager progress={pagerProgress} isDragging={isPagerDragging} />
+        ) : (
+          <div
+            key={location.pathname}
+            className={cn(
+              "will-change-transform",
+              routeMotionDirection === "right" && "mobile-screen-slide-right",
+              routeMotionDirection === "left" && "mobile-screen-slide-left"
+            )}
+          >
+            {children}
+          </div>
+        )}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-background/85 md:hidden">
@@ -396,5 +544,6 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </nav>
     </div>
+    </MobilePagerContext.Provider>
   );
 };
