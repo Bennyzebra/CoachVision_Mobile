@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   ChevronDown,
   Settings,
@@ -8,11 +8,6 @@ import {
   HelpCircle,
   Users,
   ClipboardList,
-  Sparkles,
-  Dumbbell,
-  PlayCircle,
-  History,
-  Menu,
 } from "lucide-react";
 import logo from "@/assets/CoachVision_Final.png";
 import { SearchBar } from "@/components/SearchBar";
@@ -48,7 +43,6 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { currentTeam } = useTeam();
   const { profile, session, signOut } = useAuth();
   const { theme = "system", setTheme } = useTheme();
@@ -67,28 +61,6 @@ export const Layout = ({ children }: LayoutProps) => {
   const lastScrollYRef = useRef(0);
   const lastTouchYRef = useRef<number | null>(null);
   const touchVelocityRef = useRef(0);
-
-  const navItems = useMemo(
-    () => [
-      { label: "Auto", path: "/", icon: Sparkles, match: ["/", "/auto-plan"] },
-      { label: "Drills", path: "/drills", icon: Dumbbell, match: ["/drills", "/drill"] },
-      { label: "Plan", path: "/plan", icon: PlayCircle, match: ["/plan", "/run"] },
-      { label: "Team", path: "/team", icon: Users, match: ["/team"] },
-      { label: "History", path: "/practice-tracker", icon: History, match: ["/practice-tracker"] },
-    ],
-    []
-  );
-
-  const getIsActive = (matches: string[]) =>
-    matches.some((match) =>
-      match === "/" ? location.pathname === "/" : location.pathname.startsWith(match)
-    );
-
-  const activeNavItem = navItems.find((item) => getIsActive(item.match));
-  const pageTitle =
-    activeNavItem?.label === "Auto"
-      ? "Generate Practice Plan"
-      : activeNavItem?.label || "CoachVision";
 
   useEffect(() => {
     const handleTouchMove = (event: TouchEvent) => {
@@ -382,48 +354,16 @@ export const Layout = ({ children }: LayoutProps) => {
             </Sheet>
           </div>
 
-          <div className="pb-3">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-full border border-border/70 bg-card px-3 py-2 shadow-sm">
-              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
-              <span className="min-w-0 flex-1 truncate text-center text-sm font-semibold">{pageTitle}</span>
-              <Menu className="h-5 w-5 shrink-0 text-muted-foreground" />
-            </div>
-            <SearchBar />
-          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-40 sm:px-6 md:py-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-24 sm:px-6 md:py-6 lg:px-8">
         {children}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-background/85 md:hidden">
-        <div className="grid h-16 grid-cols-5 px-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = getIsActive(item.match);
-            return (
-              <button
-                key={item.path}
-                type="button"
-                onClick={() => handleNavigate(item.path)}
-                className={cn(
-                  "flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[0.7rem] font-medium transition-colors",
-                  active ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex h-8 w-10 items-center justify-center rounded-full transition-colors",
-                    active ? "bg-primary/12" : "bg-transparent"
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="truncate">{item.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex h-20 items-center justify-center px-4">
+          <SearchBar />
         </div>
       </nav>
     </div>
