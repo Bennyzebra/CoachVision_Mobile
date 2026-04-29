@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Conditioning">
+  <defs>
+    <linearGradient id="conditioning-run" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+  <circle cx="42" cy="12" r="6" fill="#0b1f3a" />
+  <path d="M18 40l12-10 6 6 8-4 4 6-8 6-10 4-12-2z" fill="url(#conditioning-run)" />
+  <path d="M10 48h18" stroke="#60a5fa" stroke-width="3" />
+  <path d="M8 54h14" stroke="#93c5fd" stroke-width="3" />
+</svg>

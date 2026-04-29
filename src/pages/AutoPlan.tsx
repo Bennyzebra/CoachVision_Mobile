@@ -1,0 +1,1384 @@
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAppState } from "@/hooks/useAppState";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Sparkles,
+  Users,
+  Target,
+  AlertTriangle,
+  UserPlus,
+  Zap,
+  Loader2,
+  Search,
+  RefreshCw,
+  Pencil,
+  Star,
+} from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useTeam } from "@/contexts/TeamContext";
+import { DrillFeedbackRating, IntensityPreference, Drill } from "@/types";
+import { demoDrills } from "@/lib/demoData";
+import {
+  getPreloadedDrills,
+  getPreloadedPlayers,
+  loadAutoPlanDrills,
+  loadAutoPlanPlayers,
+} from "@/lib/autoplanPreload";
+import {
+  buildPracticePlan,
+  computeStats,
+  type DrillMeta,
+  type SessionContext,
+  type TeamDrillOutcome,  
+} from "@/lib/planning/engine";
+import {
+  buildTeamProfile,
+  type TeamProfileSummary,
+} from "@/lib/planning/teamProfile";
+import {
+  generateDrillExplainWhys,
+  generatePracticePlan,
+  parseSearchIntent,
+  summarizeIntentForPlanning,
+  type PlanningIntent,
+} from "@/services/geminiService";
+import { GeneratedPlan } from "@/components/GeneratedPlan";
+import { getTeamDrillOutcomes, savePractice } from "@/services/practiceService";
+import { useAuth } from "@/contexts/AuthContext";
+import { SuggestedDrillCard } from "@/components/SuggestedDrillCard";
+
+const focusAreas = ["offense", "defense", "conditioning"] as const;
+type FocusArea = (typeof focusAreas)[number];
+
+const GENERATED_PLAN_STORAGE_KEY = "coachvision-auto-plan-generated";
+const GENERATED_PLAN_TITLE_STORAGE_KEY = "coachvision-auto-plan-title";
+// Extended focus options for the new UI
+const focusOptions = [
+  { id: "offense", label: "Offense", iconSrc: "/focus-icons/offense.svg", iconAlt: "Offense" },
+  { id: "defense", label: "Defense", iconSrc: "/focus-icons/defense.svg", iconAlt: "Defense" },
+  { id: "passing", label: "Passing", iconSrc: "/focus-icons/passing.svg", iconAlt: "Passing" },
+  {
+    id: "conditioning",
+    label: "Conditioning",
+    iconSrc: "/focus-icons/conditioning.svg",
+    iconAlt: "Conditioning",
+  },
+  { id: "shooting", label: "Shooting", iconSrc: "/focus-icons/shooting.svg", iconAlt: "Shooting" },
+  {
+    id: "ball-movement",
+    label: "Ball Movement",
+    iconSrc: "/focus-icons/ball-movement.svg",
+    iconAlt: "Ball movement",
+  },
+] as const;
+
+type FocusOption = (typeof focusOptions)[number]["id"];
+
+const focusKeywordMap: Record<string, FocusOption> = {
+  offense: "offense",
+  offensive: "offense",
+  defense: "defense",
+  defensive: "defense",
+  conditioning: "conditioning",
+  cardio: "conditioning",
+  passing: "passing",
+  "ball-movement": "ball-movement",
+  ball: "ball-movement",
+  movement: "ball-movement",
+  shooting: "shooting",
+  shot: "shooting",
+};
+
+const normalizeFocusDistribution = (
+  distribution: Record<FocusArea, number>
+): Record<FocusArea, number> => {
+  const total = focusAreas.reduce((sum, key) => sum + (Number(distribution[key]) || 0), 0);
+
+  if (total <= 0) {
+    return { offense: 40, defense: 40, conditioning: 20 };
+  }
+
+  const normalized = {} as Record<FocusArea, number>;
+  let remaining = 100;
+
+  focusAreas.forEach((area, index) => {
+    if (index === focusAreas.length - 1) {
+      normalized[area] = Math.max(0, remaining);
+      return;
+    }
+
+    const raw = ((Number(distribution[area]) || 0) / total) * 100;
+    const rounded = Math.max(0, Math.round(raw));
+    normalized[area] = rounded;
+    remaining -= rounded;
+  });
+
+  return normalized;
+};
+
+const AutoPlan = () => {
+  const { state, setPlan, setDrills } = useAppState();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();  
+  const { currentTeam, teams } = useTeam();
+  const { user } = useAuth();
+  const [goals, setGoals] = useState("");
+  const [goalsManuallyEdited, setGoalsManuallyEdited] = useState(false);
+  const [players, setPlayers] = useState<SessionContext["attending"]>([]);
+  const [selectedFocuses, setSelectedFocuses] = useState<FocusOption[]>(["offense", "defense"]);
+  const [primaryFocus, setPrimaryFocus] = useState<FocusOption | null>("offense");
+  const [teamDrillOutcomes, setTeamDrillOutcomes] = useState<Record<string, TeamDrillOutcome>>({});  
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [practiceTitle, setPracticeTitle] = useState("");
+  const [practiceTitleDraft, setPracticeTitleDraft] = useState("");
+  const [isTitleSheetOpen, setIsTitleSheetOpen] = useState(false);  
+  const [generatedPlan, setGeneratedPlan] = useState<{
+    warmup: Drill[];
+    main_segment: Drill[];
+    cool_down: Drill[];
+    coach_notes: string;
+  } | null>(null);
+   
+  // Search-driven planning state
+  const [searchText, setSearchText] = useState("");
+  const [isParsingIntent, setIsParsingIntent] = useState(false);
+  const [parsedIntent, setParsedIntent] = useState<PlanningIntent | null>(null);
+  const [suggestedDrills, setSuggestedDrills] = useState<Drill[]>([]);
+  const [preferredDrills, setPreferredDrills] = useState<string[]>([]);
+  const [allDrills, setAllDrills] = useState<Drill[]>([]);
+  const [showApplyFromSearch, setShowApplyFromSearch] = useState(false);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const drillOutcomesUnavailableLoggedRef = useRef(false);
+  
+  const normalizedDefaults = useMemo(
+    () => ({
+      defaultPracticeLength:
+        Number(state.profile.defaultPracticeLength ?? state.profile.sessionTarget ?? 60) || 60,
+      defaultWarmupLength: Number(state.profile.defaultWarmupLength ?? 15) || 15,
+      intensityPreference: (state.profile.intensityPreference || "balanced") as IntensityPreference,
+      focusDistribution: normalizeFocusDistribution({
+        offense: Number(state.profile.focusDistribution?.offense ?? 40) || 40,
+        defense: Number(state.profile.focusDistribution?.defense ?? 40) || 40,
+        conditioning: Number(state.profile.focusDistribution?.conditioning ?? 20) || 20,
+      }),
+      hideAddedByDefault: state.profile.hideAddedByDefault ?? false,
+      showAdvancedDrills: state.profile.showAdvancedDrills ?? true,
+      showCommunityDrills: state.profile.showCommunityDrills ?? true,
+    }),
+    [state.profile]
+  );
+
+  const [duration, setDuration] = useState<number>(normalizedDefaults.defaultPracticeLength);
+  const [practiceDefaults, setPracticeDefaults] = useState(normalizedDefaults);
+
+    // Helper function to find drills by keywords (fallback)
+  const findDrillsByKeywords = useCallback((text: string, drills: Drill[]): Drill[] => {
+    if (!text.trim() || drills.length === 0) return [];
+
+    const searchTerms = text.toLowerCase().split(/\s+/);
+    
+    const scoredDrills = drills.map(drill => {
+      let score = 0;
+      const drillText = `${drill.name} ${drill.focus} ${(drill.tags || []).join(" ")} ${drill.description}`.toLowerCase();
+      
+      searchTerms.forEach(term => {
+        if (drillText.includes(term)) score += 2;
+        if (drill.name.toLowerCase().includes(term)) score += 3;
+        if ((drill.tags || []).some(t => t.toLowerCase().includes(term))) score += 2;
+      });
+
+      // Boost verified and higher rated drills
+      if (drill.verified) score += 1;
+      score += (drill.rating || 0) * 0.5;
+
+      return { drill, score };
+    });
+
+    return scoredDrills
+      .filter(d => d.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(d => d.drill);
+  }, []);
+
+  // Helper function to find drills by parsed intent
+  const findDrillsByIntent = useCallback((intent: PlanningIntent, drills: Drill[], practiceDuration: number): Drill[] => {
+    if (drills.length === 0) return [];
+
+    const scoredDrills = drills.map(drill => {
+      let score = 0;
+      
+      // Focus matching (highest weight)
+      if (drill.focus === intent.primary_focus) score += 10;
+      if (intent.secondary_focuses.includes(drill.focus)) score += 5;
+
+      // Keyword/tag matching
+      const drillTags = (drill.tags || []).map(t => t.toLowerCase());
+      const drillText = `${drill.name} ${drill.description}`.toLowerCase();
+      
+      intent.drill_keywords.forEach(keyword => {
+        const kw = keyword.toLowerCase();
+        if (drillTags.some(t => t.includes(kw))) score += 3;
+        if (drillText.includes(kw)) score += 2;
+      });
+
+      // Boost verified drills
+      if (drill.verified) score += 2;
+      
+      // Boost higher rated drills
+      score += (drill.rating || 0) * 0.5;
+
+      // Consider duration fit (if we have duration set)
+      if (practiceDuration > 0 && drill.duration <= practiceDuration * 0.3) {
+        score += 1; // Reasonable duration for the practice
+      }
+
+      // Favor drills appropriate for intermediate level as default
+      if (drill.level === "intermediate") {
+        score += 1;
+      }
+
+      return { drill, score };
+    });
+
+    return scoredDrills
+      .filter(d => d.score > 2) // Minimum relevance threshold
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(d => d.drill);
+  }, []);
+ const [lastProcessedQuery, setLastProcessedQuery] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const storedPlan = window.sessionStorage.getItem(GENERATED_PLAN_STORAGE_KEY);
+    if (storedPlan) {
+      try {
+        const parsedPlan = JSON.parse(storedPlan);
+        setGeneratedPlan(parsedPlan);
+      } catch (error) {
+        console.error("Failed to parse stored generated plan", error);
+        window.sessionStorage.removeItem(GENERATED_PLAN_STORAGE_KEY);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const storedTitle = window.sessionStorage.getItem(GENERATED_PLAN_TITLE_STORAGE_KEY);
+  if (storedTitle) {
+      setPracticeTitle(storedTitle);
+      setPracticeTitleDraft(storedTitle);
+    }
+  }, []);
+    
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (generatedPlan) {
+      window.sessionStorage.setItem(
+        GENERATED_PLAN_STORAGE_KEY,
+        JSON.stringify(generatedPlan)
+      );
+    } else {
+      window.sessionStorage.removeItem(GENERATED_PLAN_STORAGE_KEY);
+    }
+  }, [generatedPlan]); 
+  
+  useEffect(() => {
+
+    if (typeof window === "undefined") return;
+
+    if (practiceTitle.trim()) {
+      window.sessionStorage.setItem(GENERATED_PLAN_TITLE_STORAGE_KEY, practiceTitle.trim());
+    } else {
+      window.sessionStorage.removeItem(GENERATED_PLAN_TITLE_STORAGE_KEY);
+    }
+  }, [practiceTitle]);    
+
+    useEffect(() => {
+setPracticeDefaults(normalizedDefaults);
+    setDuration(normalizedDefaults.defaultPracticeLength);
+  }, [normalizedDefaults]);
+  
+  useEffect(() => {
+    const query = searchParams.get("query");
+    
+    // Skip if we've already processed this exact query
+    if (query === lastProcessedQuery) return;
+    
+    if (!query) {
+      setLastProcessedQuery(null);
+      return;
+    }
+
+    // Mark this query as being processed
+    setLastProcessedQuery(query);
+    // Set the search text to display in the search input
+    setSearchText(query);
+ 
+    // Show loading state in the AutoPlan search bar
+    setIsParsingIntent(true);
+    
+    const tokens = query
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+
+    const matchedFocuses: FocusOption[] = [];
+    const unmatchedTokens: string[] = [];
+
+    tokens.forEach((token) => {
+      const matchedFocus = focusKeywordMap[token];
+      if (matchedFocus) {
+        if (!matchedFocuses.includes(matchedFocus)) {
+          matchedFocuses.push(matchedFocus);
+        }
+      } else {
+        unmatchedTokens.push(token);
+      }
+    });
+
+    if (matchedFocuses.length > 0) {
+      setSelectedFocuses((prev) => {
+        const merged = Array.from(new Set([...prev, ...matchedFocuses])) as FocusOption[];
+        return merged;
+      });
+      setPrimaryFocus(matchedFocuses[0]);
+    }
+
+    // Use the new summarizeIntentForPlanning for better intent parsing
+    const fetchIntent = async () => {
+      try {
+        // Use the enhanced planning intent
+        const planningIntent = await summarizeIntentForPlanning(query);
+        setParsedIntent(planningIntent);
+
+
+        // Find suggested drills based on intent
+        const suggestions = findDrillsByIntent(planningIntent, allDrills, duration);
+        setSuggestedDrills(suggestions);
+        
+        // Map intent focuses to our FocusOption type
+        const mapFocus = (focus: string): FocusOption | null => {
+          const normalized = focus.toLowerCase().replace(/\s+/g, "-");
+          const mapping: Record<string, FocusOption> = {
+            offense: "offense",
+            defense: "defense",
+            passing: "passing",
+            conditioning: "conditioning",
+            shooting: "shooting",
+            "ball-movement": "ball-movement",
+            "ball movement": "ball-movement",
+          };
+          return mapping[normalized] || null;
+        };
+
+        const primaryMapped = mapFocus(planningIntent.primary_focus);
+        const secondaryMapped = planningIntent.secondary_focuses
+          .map(mapFocus)
+          .filter((f): f is FocusOption => f !== null);        
+
+        if (primaryMapped) {
+          const newFocuses: FocusOption[] = [primaryMapped, ...secondaryMapped];
+          setSelectedFocuses(prev => {
+            const merged = Array.from(new Set([...newFocuses]));
+            return merged.length > 0 ? merged : prev;        
+          });
+          setPrimaryFocus(primaryMapped);
+        }
+
+        // Set goals if empty and not manually edited
+        if (planningIntent.suggested_goals) {
+          const trimmedGoal = planningIntent.suggested_goals.trim();
+          if (trimmedGoal) {
+           if (!goals.trim() && !goalsManuallyEdited) {
+              setGoals(trimmedGoal);
+            } else if (goals.trim()) {
+              // Show apply option if goals already exist
+              setShowApplyFromSearch(true);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Planning intent parsing failed, using fallback:", error);
+        // Fall back to basic keyword matching for suggestions
+        const fallbackSuggestions = findDrillsByKeywords(query, allDrills);
+        setSuggestedDrills(fallbackSuggestions);
+                
+        if (unmatchedTokens.length > 0) {
+          const unmatchedText = unmatchedTokens.join(" ");
+          setGoals((prev) => (prev ? `${prev}\n${unmatchedText}` : unmatchedText));
+        }
+      } finally {
+        setIsParsingIntent(false);
+      }
+    };
+
+    fetchIntent();
+ }, [searchParams, lastProcessedQuery, goals, goalsManuallyEdited, allDrills, duration, findDrillsByIntent, findDrillsByKeywords]);
+
+  // Load all drills for suggestion matching
+  useEffect(() => {
+    const loadDrills = async () => {
+      const cached = getPreloadedDrills();
+      if (cached) {
+        setAllDrills(cached);
+        return;
+      }
+      const drills = await loadAutoPlanDrills();
+      setAllDrills(drills);      
+    };
+    loadDrills();
+  }, []);
+
+  // Debounced search intent parsing (700-1000ms after typing stops or on Enter)
+  const parseSearchIntentDebounced = useCallback(async (text: string) => {
+    if (!text.trim()) {
+      setParsedIntent(null);
+      setSuggestedDrills([]);
+      setShowApplyFromSearch(false);
+      return;
+    }
+
+    setIsParsingIntent(true);
+    try {
+      const intent = await summarizeIntentForPlanning(text);
+      setParsedIntent(intent);
+
+      // Map intent focuses to our FocusOption type
+      const mapFocus = (focus: string): FocusOption | null => {
+        const normalized = focus.toLowerCase().replace(/\s+/g, "-");
+        const mapping: Record<string, FocusOption> = {
+          offense: "offense",
+          defense: "defense",
+          passing: "passing",
+          conditioning: "conditioning",
+          shooting: "shooting",
+          "ball-movement": "ball-movement",
+          "ball movement": "ball-movement",
+        };
+        return mapping[normalized] || null;
+      };
+
+      // Update focus chips based on parsed intent
+      const primaryMapped = mapFocus(intent.primary_focus);
+      const secondaryMapped = intent.secondary_focuses
+        .map(mapFocus)
+        .filter((f): f is FocusOption => f !== null);
+
+      if (primaryMapped) {
+        const newFocuses: FocusOption[] = [primaryMapped, ...secondaryMapped];
+        setSelectedFocuses(prev => {
+          const merged = Array.from(new Set([...newFocuses]));
+          return merged.length > 0 ? merged : prev;
+        });
+        setPrimaryFocus(primaryMapped);
+      }
+
+      // Auto-fill goals if empty and not manually edited
+      if (!goals.trim() && !goalsManuallyEdited && intent.suggested_goals) {
+        setGoals(intent.suggested_goals);
+      } else if (goals.trim() && intent.suggested_goals) {
+        // Show option to apply from search
+        setShowApplyFromSearch(true);
+      }
+
+      // Find suggested drills based on intent
+      const suggestions = findDrillsByIntent(intent, allDrills, duration);
+      setSuggestedDrills(suggestions);
+    } catch (error) {
+      console.error("Failed to parse search intent:", error);
+      // Fall back to keyword-based suggestions
+      const fallbackSuggestions = findDrillsByKeywords(text, allDrills);
+      setSuggestedDrills(fallbackSuggestions);
+    } finally {
+      setIsParsingIntent(false);
+    }
+  }, [goals, goalsManuallyEdited, allDrills, duration, findDrillsByIntent, findDrillsByKeywords]);
+
+  // Handle search text changes with debouncing
+  useEffect(() => {
+    // Clear any existing timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    if (!searchText.trim()) {
+      setParsedIntent(null);
+      setSuggestedDrills([]);
+      setShowApplyFromSearch(false);
+      return;
+    }
+
+    // Set a new debounce timeout (800ms)
+    debounceTimeoutRef.current = setTimeout(() => {
+      parseSearchIntentDebounced(searchText);
+    }, 800);
+
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [searchText, parseSearchIntentDebounced]);
+
+  // Handle search on Enter key
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // Clear any pending debounce and trigger immediately
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      parseSearchIntentDebounced(searchText);
+    }
+  };
+
+  // Handle adding a drill to preferred list
+  const handleAddToPreferred = (drillId: string) => {
+    setPreferredDrills(prev => {
+      if (prev.includes(drillId)) return prev;
+      return [...prev, drillId];
+    });
+    toast.success("Drill pinned for plan generation");
+  };
+
+  // Handle removing a drill from preferred list
+  const handleRemoveFromPreferred = (drillId: string) => {
+    setPreferredDrills(prev => prev.filter(id => id !== drillId));
+  };
+
+  // Apply suggested goals from search
+  const handleApplyGoalsFromSearch = () => {
+    if (parsedIntent?.suggested_goals) {
+      setGoals(parsedIntent.suggested_goals);
+      setShowApplyFromSearch(false);
+      toast.success("Goals updated from search intent");
+    }
+  };
+
+  // Track manual goal edits
+  const handleGoalsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setGoals(e.target.value);
+    if (e.target.value.trim()) {
+      setGoalsManuallyEdited(true);
+    }
+  };
+
+  // Load players from current team
+  useEffect(() => {
+    const loadPlayers = async () => {
+      if (!currentTeam) return;
+
+      const cached = getPreloadedPlayers(currentTeam.id);
+      if (cached) {
+        setPlayers(cached);
+        return;
+      }
+      const normalized = await loadAutoPlanPlayers(currentTeam.id);
+      setPlayers(normalized);      
+    };
+
+    loadPlayers();
+  }, [currentTeam]);
+
+  useEffect(() => {
+    if (!user || !currentTeam) return;
+
+    const loadOutcomes = async () => {
+      const { data, error, outcomesUnavailable } = await getTeamDrillOutcomes(user.id, currentTeam.id);
+      if (error) {
+        console.warn("Unable to load team drill outcomes:", error);
+        return;
+      }
+
+      if (outcomesUnavailable && !drillOutcomesUnavailableLoggedRef.current) {
+        console.info("Practice drill outcomes are unavailable in this environment until the migration is applied.");
+        drillOutcomesUnavailableLoggedRef.current = true;
+      }
+      
+      const outcomeMap = (data ?? []).reduce<Record<string, TeamDrillOutcome>>((acc, outcome) => {
+        acc[outcome.drill_id] = {
+          avgCompletionPercent: outcome.avg_completion_percent,
+          avgFeedbackRating: outcome.avg_feedback_rating,
+          totalSessions: outcome.total_sessions,
+        };
+        return acc;
+      }, {});
+      setTeamDrillOutcomes(outcomeMap);
+    };
+
+    loadOutcomes();
+  }, [currentTeam, user]);
+  
+  const stats = useMemo(() => computeStats(players), [players]);
+
+  const mapFeedbackToMood = (rating: DrillFeedbackRating): SessionContext["feedback"][number]["mood"] => {
+    if (rating >= 4) return "happy";
+    if (rating === 3) return "neutral";
+    return "sad";
+  };
+  
+   const toggleFocusSelection = (focusId: FocusOption) => {
+    setSelectedFocuses((prev) => {
+      if (prev.includes(focusId)) {
+        // Don't allow removing all focuses
+        if (prev.length === 1) return prev;
+        // If removing primary, make another one primary
+        if (primaryFocus === focusId) {
+          const remaining = prev.filter((f) => f !== focusId);
+          setPrimaryFocus(remaining[0] || null);
+        }
+        return prev.filter((f) => f !== focusId);
+      } else {
+        return [...prev, focusId];
+      }
+    });
+  };
+
+  const handleSetPrimaryFocus = (focusId: FocusOption) => {
+    if (!selectedFocuses.includes(focusId)) {
+      setSelectedFocuses((prev) => [...prev, focusId]);
+    }
+    setPrimaryFocus(focusId);
+  };
+
+  // Convert UI focus to engine focus
+  const getEngineFocus = (): SessionContext["focus"] => {
+    if (primaryFocus === "offense" || primaryFocus === "shooting") return "offense";
+    if (primaryFocus === "defense") return "defense";
+    if (primaryFocus === "passing" || primaryFocus === "ball-movement") return "passing";
+    if (primaryFocus === "conditioning") return "conditioning";
+    return "balanced";
+  };
+
+  const mapDrill = (d: Record<string, unknown>): Drill => ({
+    id: d.id as string,
+    name: d.name as string,
+    focus: (d.focus || "offense") as Drill["focus"],
+    duration: (d.duration || d.duration_min || 10) as number,
+    rating: (d.rating || 0) as number,
+    verified: (d.verified || false) as boolean,
+    description: (d.description || "") as string,
+    cues: (d.cues || []) as string[],
+    tags: (d.tags || []) as string[],
+    mediaUrl: d.media_url as string | undefined,
+    minPlayers: d.min_players as number | undefined,
+    maxPlayers: d.max_players as number | undefined,
+    optimalGroupSize: d.optimal_group_size as number | undefined,
+    level: d.level,
+    intensity: d.intensity,
+    positionsEmphasis: d.positions_emphasis,
+    requiresFullCourt: d.requires_full_court,
+  });
+  
+  const generatePlan = async () => {
+    if (players.length === 0) {
+      toast.error("Add players to your team first!");
+      return;
+    }
+
+    if (state.plan.length > 0) {
+      if (!confirm("This will clear your current plan. Continue?")) {
+        return;
+      }
+    }
+
+    setIsGenerating(true);
+
+    let availableDrills: Drill[] = [];
+    
+    try {
+      let drillsQuery = supabase
+      .from('drills')
+        .select('*');
+
+      if (user) {
+        drillsQuery = drillsQuery.or(`verified.eq.true,coach_id.eq.${user.id}`);
+      } else {
+        drillsQuery = drillsQuery.eq('verified', true);
+      }
+
+      const { data: drills, error } = await drillsQuery;
+      
+      if (error) throw error;
+
+      availableDrills = (drills || []).map(mapDrill);
+      
+      const ageGroup = stats.majorityLevel || state.profile.experience || "intermediate";
+      const focus = primaryFocus || "offense";
+
+      const coachRequirements = {
+        ageGroup,
+        focus,
+        duration,
+        goals,
+        preferredDrillIds: preferredDrills, // Pass preferred drills to influence plan  
+        coachId: user?.id,
+        teamId: currentTeam?.id,        
+      };
+
+      const result = await generatePracticePlan(coachRequirements, availableDrills, preferredDrills);
+
+      const teamProfileSummary = currentTeam?.team_profile_summary as TeamProfileSummary | null | undefined;
+      const explainWhyMap = await generateDrillExplainWhys({
+        coachRequirements,
+        teamProfileSummary,
+        drills: [
+          ...result.warmup.map((drill) => {
+            const mapped = mapDrill(drill);
+            return {
+              id: mapped.id,
+              name: mapped.name,
+              focus: mapped.focus,
+              duration: mapped.duration,
+              segment: "warmup",
+              tags: mapped.tags,
+            };
+          }),
+          ...result.main_segment.map((drill) => {
+            const mapped = mapDrill(drill);
+            return {
+              id: mapped.id,
+              name: mapped.name,
+              focus: mapped.focus,
+              duration: mapped.duration,
+              segment: "main",
+              tags: mapped.tags,
+            };
+          }),
+          ...result.cool_down.map((drill) => {
+            const mapped = mapDrill(drill);
+            return {
+              id: mapped.id,
+              name: mapped.name,
+              focus: mapped.focus,
+              duration: mapped.duration,
+              segment: "cooldown",
+              tags: mapped.tags,
+            };
+          }),
+        ],
+      });
+
+      const mapDrillWithExplainWhy = (drill: Record<string, unknown>) => {
+        const mapped = mapDrill(drill);
+        const explainWhy = explainWhyMap[mapped.id];
+        return { ...mapped, explainWhy };
+      };
+      
+      setGeneratedPlan({
+        warmup: result.warmup.map(mapDrillWithExplainWhy),
+        main_segment: result.main_segment.map(mapDrillWithExplainWhy),
+        cool_down: result.cool_down.map(mapDrillWithExplainWhy),
+        coach_notes: result.coach_notes,
+      });
+
+      toast.success("Practice plan generated successfully!");
+    } catch (error) {
+      console.error("Error generating plan:", error);
+      if (availableDrills.length > 0) {
+        const teamProfileSummary = currentTeam?.team_profile_summary as TeamProfileSummary | null | undefined;
+        const teamProfile = buildTeamProfile({
+          attending: players,
+          coachPreferences: {
+            focusDistribution: practiceDefaults.focusDistribution,
+            intensityPreference: practiceDefaults.intensityPreference,
+          },
+          summary: teamProfileSummary ?? null,
+        });
+        
+        const sessionContext: SessionContext = {
+          attending: players,
+          focus: getEngineFocus(),
+          goalsText: goals,
+          teamLevel: stats.majorityLevel || "intermediate",
+          duration,
+          focusDistribution: practiceDefaults.focusDistribution,
+          teamProfile,         
+          teamDrillOutcomes,          
+          lastUsedDrillIds: state.plan.map(item => item.drillId),
+        };
+
+        const fallbackPlan = buildPracticePlan(sessionContext, availableDrills);
+        if (fallbackPlan.length > 0) {
+          const drillLookup = new Map(availableDrills.map(drill => [drill.id, drill]));
+          const warmup: Drill[] = [];
+          const main_segment: Drill[] = [];
+          const cool_down: Drill[] = [];
+
+          fallbackPlan.forEach(item => {
+            const drill = drillLookup.get(item.drillId);
+            if (!drill) return;
+            const drillWithDuration = { ...drill, duration: item.duration, explainWhy: item.explainWhy };
+            if (item.segment === "warmup") warmup.push(drillWithDuration);
+            else if (item.segment === "cooldown") cool_down.push(drillWithDuration);
+            else main_segment.push(drillWithDuration);
+          });
+
+          const explainWhyMap = await generateDrillExplainWhys({
+            coachRequirements,
+            teamProfileSummary,
+            drills: [
+              ...warmup.map((drill) => ({
+                id: drill.id,
+                name: drill.name,
+                focus: drill.focus,
+                duration: drill.duration,
+                segment: "warmup",
+                tags: drill.tags,
+              })),
+              ...main_segment.map((drill) => ({
+                id: drill.id,
+                name: drill.name,
+                focus: drill.focus,
+                duration: drill.duration,
+                segment: "main",
+                tags: drill.tags,
+              })),
+              ...cool_down.map((drill) => ({
+                id: drill.id,
+                name: drill.name,
+                focus: drill.focus,
+                duration: drill.duration,
+                segment: "cooldown",
+                tags: drill.tags,
+              })),
+            ],
+          });
+
+          const applyExplainWhy = (drills: Drill[]) =>
+            drills.map((drill) => ({ ...drill, explainWhy: explainWhyMap[drill.id] }));
+          
+          setGeneratedPlan({
+            warmup: applyExplainWhy(warmup),
+            main_segment: applyExplainWhy(main_segment),
+            cool_down: applyExplainWhy(cool_down),
+            coach_notes: "Generated locally based on your practice defaults.",
+          });
+
+          toast.warning("AI plan failed. Generated a local plan instead.");
+          return;
+        }
+      }      
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate practice plan. Please try again.";
+      toast.error(errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSaveAndContinue = async () => {
+    if (!generatedPlan || !user) {
+      toast.error("Unable to save practice");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const { data, error } = await savePractice(
+        user.id,
+        currentTeam?.id || null,
+        duration,
+        generatedPlan,
+        practiceTitle
+      );
+
+      if (error) throw error;
+
+      if (data) {
+        toast.success("Practice saved successfully!");
+        navigate(`/run?practiceId=${data.id}`);
+      }
+    } catch (error) {
+      console.error("Error saving practice:", error);
+      toast.error("Failed to save practice. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+ // Get last practice rating if available
+  const lastPracticeRating = useMemo(() => {
+    if (state.feedback.length === 0) return null;
+    const lastFeedback = state.feedback[state.feedback.length - 1];
+    const items = lastFeedback?.items || [];
+    if (items.length === 0) return null;
+    return (items.reduce((sum, i) => sum + i.rating, 0) / items.length).toFixed(1);
+  }, [state.feedback]);
+
+  // Empty state: No team created
+  if (!currentTeam && teams.length === 0) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Card className="max-w-md w-full border-2 border-dashed border-muted-foreground/25">
+          <CardContent className="py-16 text-center space-y-6">
+            <div className="mx-auto w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+              <AlertTriangle className="w-10 h-10 text-primary" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold">No Team Created</h2>
+              <p className="text-muted-foreground max-w-sm mx-auto">
+                Create your first team to start using Auto-Plan and generate AI-powered practice plans.
+              </p>
+            </div>
+            <Button size="lg" className="gap-2" onClick={() => navigate("/settings")}>
+              <UserPlus className="w-5 h-5" />
+              Create Team
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Empty state: Team exists but no players
+  if (players.length === 0 && currentTeam) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-2 border-dashed border-muted-foreground/25">
+          <CardContent className="py-16 text-center space-y-6">
+            <div className="mx-auto w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center">
+              <Users className="w-10 h-10 text-secondary" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold">No Players Added</h2>
+              <p className="text-muted-foreground max-w-sm mx-auto">
+                Add players to your roster so Auto-Plan can create personalized drills based on positions, experience, and team composition.
+              </p>
+            </div>
+
+            <Button size="lg" className="gap-2" onClick={() => navigate("/team")}>
+              <UserPlus className="w-5 h-5" />
+              Add Players to Roster
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+ );
+  }
+
+  if (generatedPlan) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <Sheet
+              open={isTitleSheetOpen}
+              onOpenChange={(open) => {
+                setIsTitleSheetOpen(open);
+                if (open) {
+                  setPracticeTitleDraft(practiceTitle);
+                }
+              }}
+            >
+              <SheetTrigger asChild>
+                <Button variant="outline" className="mb-3 gap-2">
+                  <Pencil className="h-4 w-4" />
+                  {practiceTitle.trim() ? "Edit Practice Name" : "Name Practice"}
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="w-full sm:max-w-md">
+                <SheetHeader>
+                  <SheetTitle>{practiceTitle.trim() ? "Edit Practice Name" : "Name Your Practice"}</SheetTitle>
+                  <SheetDescription>
+                    Add a title now and update it any time before saving.
+                  </SheetDescription>
+                </SheetHeader>
+
+                <div className="mt-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="practiceTitle">Practice title</Label>
+                    <Input
+                      id="practiceTitle"
+                      placeholder="e.g. Ball Movement + Transition Defense"
+                      value={practiceTitleDraft}
+                      onChange={(event) => setPracticeTitleDraft(event.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsTitleSheetOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setPracticeTitle(practiceTitleDraft.trim());
+                        setIsTitleSheetOpen(false);
+                      }}
+                    >
+                      Save Title
+                    </Button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+            
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+              <Sparkles className="h-8 w-8 text-primary" />
+              {practiceTitle.trim() || "Your AI-Generated Practice Plan"}
+            </h1>
+            <p className="text-muted-foreground">
+              Review your personalized practice plan
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setGeneratedPlan(null);
+              setPracticeTitle("");
+              setPracticeTitleDraft("");
+              setIsTitleSheetOpen(false);
+              if (typeof window !== "undefined") {
+                window.sessionStorage.removeItem(GENERATED_PLAN_TITLE_STORAGE_KEY);
+              }              
+            }}
+            >
+            Create New Plan
+          </Button>
+        </div>
+
+        <GeneratedPlan
+          plan={generatedPlan}
+          onViewDrill={(drillId) => {
+            navigate(`/drill/${drillId}`, { state: { fromAutoPlan: true } });
+          }}
+          onSaveAndContinue={handleSaveAndContinue}
+          isSaving={isSaving}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+     {/* Search-Driven Planning */}
+      <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+        <CardContent className="py-4">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="What should we work on today? e.g., 'prep for full court press' or 'fix turnovers vs press'"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="pl-10 pr-4 h-12 text-base bg-background transition duration-200 ease-out hover:shadow-md hover:shadow-primary/20 hover:border-primary/40 hover:scale-[1.01] focus-visible:scale-[1.01]"
+                />
+              {isParsingIntent && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              )}
+            </div>
+          </div>
+          {parsedIntent && (
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">Detected:</span>
+              <Badge variant="secondary" className="text-xs">
+                {parsedIntent.primary_focus}
+              </Badge>
+              {parsedIntent.secondary_focuses.map((focus) => (
+                <Badge key={focus} variant="outline" className="text-xs">
+                  {focus}
+                </Badge>
+              ))}
+              {parsedIntent.drill_keywords.slice(0, 3).map((kw) => (
+                <span key={kw} className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  #{kw}
+                </span>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>      
+      {/* Practice Configuration - AI Form Style */}
+      <Card className="border-2">
+        <CardHeader className="border-b bg-muted/30">
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-primary" />
+            Practice Configuration
+          </CardTitle>
+          <CardDescription>
+            Configure your practice in 3 simple steps
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-8">
+          {/* Step 1: Duration */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+                1
+              </div>
+              <Label className="text-base font-semibold">Select Duration</Label>
+            </div>
+            <div className="ml-11 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Practice length</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl font-bold text-primary">{duration}</span>
+                  <span className="text-muted-foreground">minutes</span>
+                </div>
+              </div>
+              <Slider
+                value={[duration]}
+                min={30}
+                max={150}
+                step={5}
+                onValueChange={(value) => setDuration(value[0])}
+                className="py-2"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>30 min</span>
+                <span>90 min</span>
+                <span>150 min</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 2: Focus Areas */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+                2
+              </div>
+              <div>
+                <Label className="text-base font-semibold">Choose Focus Areas</Label>
+                <p className="text-sm text-muted-foreground">
+                  Select all that apply, then star one as your primary focus
+                </p>
+              </div>
+            </div>
+            <div className="ml-11">
+              <div className="flex flex-col gap-2">
+                {focusOptions.map((option) => {
+                  const isSelected = selectedFocuses.includes(option.id);
+                  const isPrimary = primaryFocus === option.id;
+                  
+                  return (
+                    <div
+                      key={option.id}
+                      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm transition-all ${
+                        isPrimary
+                          ? "border-primary/60 bg-primary/10 shadow-sm"
+                          : isSelected
+                            ? "border-primary/30 bg-muted"
+                            : "border-border bg-background"
+                      }`}
+                      onClick={() => toggleFocusSelection(option.id)}                      
+                    >
+                      <label
+                        className="flex items-center gap-3 text-left"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                      <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleFocusSelection(option.id)}
+                          aria-label={`Select ${option.label} focus`}
+                        />
+                        <span className="flex items-center gap-2 font-medium text-foreground">
+                          <img
+                            src={option.iconSrc}
+                            alt={option.iconAlt}
+                            className="h-6 w-6"
+                            loading="lazy"
+                          />
+                          {option.label}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                          isPrimary
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary"
+                        }`}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleSetPrimaryFocus(option.id);
+                        }}                        
+                        aria-pressed={isPrimary}
+                        aria-label={`Set ${option.label} as primary focus`}
+                      >
+                        <Star className="h-3.5 w-3.5" />
+                        {isPrimary ? "Primary" : "Set primary"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3: Goals */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+                3
+              </div>
+              <Label className="text-base font-semibold">Add Today's Goals</Label>
+            </div>
+            <div className="ml-11 space-y-2">
+              <div className="relative">
+                <Textarea
+                  placeholder="E.g., fix turnovers, prep for Friday opponent, improve press break, increase communication…"
+                  value={goals}
+                  onChange={handleGoalsChange}
+                  rows={3}
+                  className="resize-none"
+                />
+                {showApplyFromSearch && parsedIntent?.suggested_goals && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute right-2 top-2 gap-1.5 text-xs"
+                    onClick={handleApplyGoalsFromSearch}
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Apply from search
+                  </Button>
+                )}
+              </div>
+              {showApplyFromSearch && parsedIntent?.suggested_goals && (
+                <p className="text-xs text-muted-foreground">
+                  Suggested: "{parsedIntent.suggested_goals}"
+                </p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Suggested Drills Section */}
+      <Card className="border-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Target className="h-5 w-5 text-primary" />
+            Suggested Drills for This Focus
+          </CardTitle>
+          <CardDescription>
+            {searchText.trim() 
+              ? "Drills that match your search intent. Pin them to influence plan generation."
+              : "Type what you want to work on above to see suggested drills."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!searchText.trim() ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Search className="h-10 w-10 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">Enter your focus above to see drill suggestions</p>
+            </div>
+          ) : isParsingIntent ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Finding matching drills...</p>
+            </div>
+          ) : suggestedDrills.length > 0 ? (
+            <div className="space-y-2">
+              {suggestedDrills.map((drill) => (
+                <SuggestedDrillCard
+                  key={drill.id}
+                  drill={drill}
+                  onAddToPlan={handleAddToPreferred}
+                  isAdded={preferredDrills.includes(drill.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <AlertTriangle className="h-8 w-8 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">No matching drills found. Try different search terms.</p>
+            </div>
+          )}
+
+          {/* Pinned drills indicator */}
+          {preferredDrills.length > 0 && (
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Pinned for plan ({preferredDrills.length})
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-xs h-7"
+                  onClick={() => setPreferredDrills([])}
+                >
+                  Clear all
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {preferredDrills.map((drillId) => {
+                  const drill = allDrills.find(d => d.id === drillId);
+                  return drill ? (
+                    <Badge 
+                      key={drillId} 
+                      variant="secondary" 
+                      className="gap-1 cursor-pointer hover:bg-destructive/20"
+                      onClick={() => handleRemoveFromPreferred(drillId)}
+                    >
+                      {drill.name}
+                      <span className="text-xs opacity-60">×</span>
+                    </Badge>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      {/* Generate Button - BIG and CENTERED */}
+      <div className="py-4">
+        <Button
+          onClick={generatePlan}
+          size="lg"
+          disabled={isGenerating}
+          className="w-full h-16 text-lg gap-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-xl hover:shadow-2xl transition-all duration-300"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="h-6 w-6 animate-spin" />
+              Generating Your Plan...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-6 w-6" />
+              Generate Practice Plan
+            </>
+          )}
+        </Button>
+        <p className="text-center text-sm text-muted-foreground mt-3">
+          {isGenerating
+            ? "AI is analyzing your team data and creating the perfect practice plan..."
+            : "Takes less than 30 seconds. Uses over 50 data points from your team."}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default AutoPlan;
