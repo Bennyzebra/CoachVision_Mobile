@@ -1368,7 +1368,7 @@ setPracticeDefaults(normalizedDefaults);
           ) : (
             <>
               <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
-              Generate Practice Plan
+              Practice Plan
             </>
           )}
         </Button>
