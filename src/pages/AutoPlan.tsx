@@ -1246,7 +1246,7 @@ setPracticeDefaults(normalizedDefaults);
             <div className="space-y-2 sm:ml-11">
               <div className="relative">
                 <Textarea
-                  placeholder="E.g., fix turnovers, prep for Friday opponent, improve press break, increase communication…"
+                  placeholder="Fix turnovers... Prep for the game on Friday... Strengthen our defense..."
                   value={goals}
                   onChange={handleGoalsChange}
                   rows={3}
