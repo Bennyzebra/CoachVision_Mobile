@@ -1352,31 +1352,26 @@ setPracticeDefaults(normalizedDefaults);
           )}
         </CardContent>
       </Card>
-      {/* Generate Button - BIG and CENTERED */}
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-4">
+      {/* Generate Button */}
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-4">
         <Button
           onClick={generatePlan}
           size="lg"
           disabled={isGenerating}
-          className="h-14 w-full gap-3 bg-gradient-to-r from-primary to-primary/80 text-base shadow-xl transition-all duration-300 hover:from-primary/90 hover:to-primary hover:shadow-2xl sm:h-16 sm:text-lg"
+          className="h-12 w-full gap-2 bg-primary text-base shadow-md transition-all duration-300 hover:bg-primary/90 sm:h-14 sm:gap-3 sm:text-lg"
         >
           {isGenerating ? (
             <>
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin sm:h-6 sm:w-6" />
               Generating Your Plan...
             </>
           ) : (
             <>
-              <Sparkles className="h-6 w-6" />
+              <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
               Generate Practice Plan
             </>
           )}
         </Button>
-        <p className="mt-3 text-center text-xs text-muted-foreground sm:text-sm">
-          {isGenerating
-            ? "AI is analyzing your team data and creating the perfect practice plan..."
-            : "Takes less than 30 seconds. Uses over 50 data points from your team."}
-        </p>
       </div>
     </div>
   );
