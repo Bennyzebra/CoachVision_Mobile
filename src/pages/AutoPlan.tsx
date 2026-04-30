@@ -993,7 +993,7 @@ const AutoPlan = () => {
   }
 
   return (
-    <div className="space-y-5 max-md:-mb-[calc(6.75rem+env(safe-area-inset-bottom))] sm:space-y-8">
+    <div className="space-y-5 sm:space-y-8">
      {/* Search-Driven Planning */}
       <Card className="rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
         <CardContent className="p-3 sm:py-4">
@@ -1118,7 +1118,7 @@ const AutoPlan = () => {
               </div>
             </div>
             <div className="sm:ml-11">
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 {focusOptions.map((option) => {
                   const isSelected = selectedFocuses.includes(option.id);
                   const isPrimary = primaryFocus === option.id;
@@ -1126,7 +1126,7 @@ const AutoPlan = () => {
                   return (
                     <div
                       key={option.id}
-                      className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm transition-all ${
+                      className={`grid min-h-16 cursor-pointer grid-cols-[2rem_2rem_minmax(0,1fr)_3rem] items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all sm:grid-cols-[2.25rem_2.5rem_minmax(0,1fr)_3rem] sm:gap-3 ${
                         isPrimary
                           ? "border-primary/60 bg-primary/10 shadow-sm"
                           : isSelected
@@ -1136,27 +1136,28 @@ const AutoPlan = () => {
                       onClick={() => toggleFocusSelection(option.id)}                      
                     >
                       <label
-                        className="flex min-h-10 min-w-0 flex-1 items-center gap-3 text-left"
+                        className="flex min-h-10 items-center justify-center"
                         onClick={(event) => event.stopPropagation()}
                       >
-                      <Checkbox
+                        <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => toggleFocusSelection(option.id)}
+                          className="h-5 w-5 shrink-0"
                           aria-label={`Select ${option.label} focus`}
                         />
-                        <span className="flex items-center gap-2 font-medium text-foreground">
-                          <img
-                            src={option.iconSrc}
-                            alt={option.iconAlt}
-                            className="h-5 w-5 sm:h-6 sm:w-6"
-                            loading="lazy"
-                          />
-                          {option.label}
-                        </span>
                       </label>
+                      <img
+                        src={option.iconSrc}
+                        alt={option.iconAlt}
+                        className="h-6 w-6 shrink-0 justify-self-center sm:h-7 sm:w-7"
+                        loading="lazy"
+                      />
+                      <span className="min-w-0 truncate font-medium text-foreground">
+                        {option.label}
+                      </span>
                       <button
                         type="button"
-                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition ${
+                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center justify-self-end rounded-full border transition ${
                           isPrimary
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:bg-primary/5 hover:text-primary"
@@ -1218,7 +1219,7 @@ const AutoPlan = () => {
       </Card>
 
       {/* Generate Button */}
-      <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-4">
+      <div className="py-2 sm:py-4">
         <Button
           onClick={generatePlan}
           size="lg"
