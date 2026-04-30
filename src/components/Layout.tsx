@@ -48,6 +48,9 @@ type DragIntent = "idle" | "horizontal" | "vertical";
 
 const clampPagerProgress = (value: number) => Math.min(1, Math.max(0, value));
 const pagerPaths = ["/", "/drills"] as const;
+const PAGER_DRAG_DEADZONE_PX = 4;
+const PAGER_HORIZONTAL_INTENT_BIAS_PX = 2;
+const PAGER_SWIPE_THRESHOLD_RATIO = 0.24;
 
 export const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
@@ -79,6 +82,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const pagerStartXRef = useRef(0);
   const pagerStartYRef = useRef(0);
   const pagerStartProgressRef = useRef(0);
+  const pagerLatestDeltaXRef = useRef(0);
   const pagerDragIntentRef = useRef<DragIntent>("idle");
   const pagerScrollPositionsRef = useRef([0, 0]);
   const currentPagerIndexRef = useRef(routePagerIndex);
@@ -185,6 +189,7 @@ export const Layout = ({ children }: LayoutProps) => {
     pagerStartXRef.current = clientX;
     pagerStartYRef.current = clientY;
     pagerStartProgressRef.current = pagerProgress;
+    pagerLatestDeltaXRef.current = 0;
     pagerDragIntentRef.current = "idle";
   }, [isMobileViewport, isPrimaryPagerRoute, pagerProgress]);
 
@@ -198,9 +203,9 @@ export const Layout = ({ children }: LayoutProps) => {
       const absY = Math.abs(deltaY);
 
       if (pagerDragIntentRef.current === "idle") {
-        if (Math.max(absX, absY) < 7) return "idle";
+        if (Math.max(absX, absY) < PAGER_DRAG_DEADZONE_PX) return "idle";
 
-        pagerDragIntentRef.current = absX > absY + 4 ? "horizontal" : "vertical";
+        pagerDragIntentRef.current = absX > absY + PAGER_HORIZONTAL_INTENT_BIAS_PX ? "horizontal" : "vertical";
 
         if (pagerDragIntentRef.current === "horizontal") {
           savePagerScrollPosition(currentPagerIndexRef.current);
@@ -214,6 +219,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
       const viewportWidth = Math.max(window.innerWidth, 1);
       const nextProgress = clampPagerProgress(pagerStartProgressRef.current - deltaX / viewportWidth);
+      pagerLatestDeltaXRef.current = deltaX;
       setPagerProgress(nextProgress);
       return "horizontal";
     },
@@ -223,12 +229,22 @@ export const Layout = ({ children }: LayoutProps) => {
   const endPagerDrag = useCallback(() => {
     if (pagerDragIntentRef.current !== "horizontal") {
       pagerDragIntentRef.current = "idle";
+      pagerLatestDeltaXRef.current = 0;
       setIsPagerDragging(false);
       return;
     }
 
-    snapToPagerIndex(pagerProgress >= 0.5 ? 1 : 0);
-  }, [pagerProgress, snapToPagerIndex]);
+    const dragDeltaX = pagerLatestDeltaXRef.current;
+    const swipeThreshold = Math.max(window.innerWidth, 1) * PAGER_SWIPE_THRESHOLD_RATIO;
+    const currentIndex = currentPagerIndexRef.current;
+    const targetIndex =
+      Math.abs(dragDeltaX) >= swipeThreshold
+        ? currentIndex + (dragDeltaX < 0 ? 1 : -1)
+        : currentIndex;
+
+    pagerLatestDeltaXRef.current = 0;
+    snapToPagerIndex(targetIndex);
+  }, [snapToPagerIndex]);
 
   const goToPagerPage = useCallback(
     (target: MobilePagerTarget) => {
