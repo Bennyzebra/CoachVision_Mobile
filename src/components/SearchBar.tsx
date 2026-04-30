@@ -136,7 +136,7 @@ export const SearchBar = () => {
       const intent = mobilePager?.updateDrag(event.clientX, event.clientY);
       if (intent === "horizontal") {
         const deltaX = event.clientX - touchStartXRef.current;
-        setMobilePagerDragOffset(mobilePagerStartOffsetRef.current - deltaX);
+        setMobilePagerDragOffset(mobilePagerStartOffsetRef.current + deltaX);
         suppressClickRef.current = true;
         if (!hasPointerCaptureRef.current) {
           event.currentTarget.setPointerCapture(event.pointerId);
