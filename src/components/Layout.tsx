@@ -58,7 +58,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileHeaderHidden, setIsMobileHeaderHidden] = useState(false);
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const isMobileViewport = true;
   const [routeMotionDirection, setRouteMotionDirection] = useState<RouteMotionDirection>(null);
   const routePagerIndex = location.pathname === "/drills" ? 1 : 0;
   const isPrimaryPagerRoute = location.pathname === "/" || location.pathname === "/drills";
@@ -105,9 +105,8 @@ export const Layout = ({ children }: LayoutProps) => {
     const handleScroll = () => {
       const currentY = window.scrollY;
       const delta = currentY - lastScrollYRef.current;
-      const isMobile = window.matchMedia("(max-width: 767px)").matches;
 
-      if (!isMobile || currentY < 16) {
+      if (currentY < 16) {
         setIsMobileHeaderHidden(false);
         lastScrollYRef.current = currentY;
         return;
@@ -131,15 +130,6 @@ export const Layout = ({ children }: LayoutProps) => {
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
     };
-  }, []);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 767px)");
-    const handleChange = () => setIsMobileViewport(mediaQuery.matches);
-
-    handleChange();
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
 
   useEffect(() => {
@@ -521,7 +511,7 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl overflow-x-hidden px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-24 sm:px-6 md:py-6 lg:px-8">
+      <main className="w-full overflow-x-hidden px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-24 sm:px-6 md:py-6 lg:px-8">
         {isMobileViewport && isPrimaryPagerRoute ? (
           <MobilePrimaryPager progress={pagerProgress} isDragging={isPagerDragging} />
         ) : (
