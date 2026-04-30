@@ -527,7 +527,7 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
 
-      <main className="w-full overflow-x-hidden px-4 pb-[calc(6.75rem+var(--app-safe-area-bottom))] pt-[var(--mobile-content-top-offset)] sm:px-6 md:py-6 lg:px-8">
+      <main className="w-full overflow-x-hidden px-4 pb-[calc(5.4rem+var(--app-safe-area-bottom))] pt-[var(--mobile-content-top-offset)] sm:px-6 md:py-6 lg:px-8">
         {isMobileViewport && isPrimaryPagerRoute ? (
           <MobilePrimaryPager progress={pagerProgress} isDragging={isPagerDragging} />
         ) : (
@@ -544,8 +544,8 @@ export const Layout = ({ children }: LayoutProps) => {
         )}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 pb-[var(--app-safe-area-bottom)] shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-background/85 md:hidden">
-        <div className="flex h-20 items-center justify-center px-4">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/45 bg-background/70 pb-[var(--app-safe-area-bottom)] shadow-[0_-10px_28px_rgba(15,23,42,0.10)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/55 md:hidden">
+        <div className="flex h-16 items-center justify-center px-4">
           <SearchBar />
         </div>
       </nav>
