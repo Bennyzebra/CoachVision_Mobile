@@ -6,6 +6,15 @@ type MobilePrimaryPagerProps = {
 };
 
 export const MobilePrimaryPager = ({ progress, isDragging }: MobilePrimaryPagerProps) => {
+  const activeIndex = progress >= 0.5 ? 1 : 0;
+  const getPaneClassName = (index: number) =>
+    [
+      "w-1/2 shrink-0 px-4 sm:px-6",
+      !isDragging && activeIndex !== index ? "max-h-0 overflow-hidden" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
   return (
     <div className="-mx-4 overflow-hidden sm:-mx-6 md:mx-0">
       <div
@@ -17,10 +26,10 @@ export const MobilePrimaryPager = ({ progress, isDragging }: MobilePrimaryPagerP
             : "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       >
-        <section className="w-1/2 shrink-0 px-4 sm:px-6" aria-label="Auto Plan">
+        <section className={getPaneClassName(0)} aria-label="Auto Plan">
           <AutoPlan />
         </section>
-        <section className="w-1/2 shrink-0 px-4 sm:px-6" aria-label="Drill Library">
+        <section className={getPaneClassName(1)} aria-label="Drill Library">
           <DrillLibrary />
         </section>
       </div>
