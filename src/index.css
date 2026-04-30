@@ -54,6 +54,7 @@ All colors MUST be HSL.
     --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
     --mobile-header-content-height: 3.5rem;
     --mobile-header-top-padding: calc(var(--app-safe-area-top) + 0.125rem);
+    --mobile-header-content-lift: 0.75rem;
     --mobile-header-height: calc(var(--mobile-header-top-padding) + var(--mobile-header-content-height));
     --mobile-content-top-offset: calc(var(--mobile-header-height) + 2rem);
   }

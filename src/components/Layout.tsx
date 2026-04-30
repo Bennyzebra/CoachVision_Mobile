@@ -482,7 +482,7 @@ export const Layout = ({ children }: LayoutProps) => {
         )}
       >
         <div className="px-4 pt-[var(--mobile-header-top-padding)]">
-          <div className="flex h-14 items-center justify-between gap-3">
+          <div className="flex h-14 -translate-y-[var(--mobile-header-content-lift)] items-center justify-between gap-3">
             <button
               type="button"
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
