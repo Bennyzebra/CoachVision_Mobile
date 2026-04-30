@@ -1151,11 +1151,7 @@ const AutoPlan = () => {
                       </span>
                       <button
                         type="button"
-                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center justify-self-end rounded-full border transition ${
-                          isPrimary
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:bg-primary/5 hover:text-primary"
-                        }`}
+                        className="group inline-flex h-11 w-11 shrink-0 items-center justify-center justify-self-end"
                         onMouseDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -1164,7 +1160,15 @@ const AutoPlan = () => {
                         aria-pressed={isPrimary}
                         aria-label={`Set ${option.label} as primary focus`}
                       >
-                        <Star className={`h-3 w-3 ${isPrimary ? "fill-current" : ""}`} />
+                        <span
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition ${
+                            isPrimary
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-muted-foreground/30 text-muted-foreground group-hover:border-primary group-hover:bg-primary/5 group-hover:text-primary"
+                          }`}
+                        >
+                          <Star className={`h-3 w-3 ${isPrimary ? "fill-current" : ""}`} />
+                        </span>
                       </button>
                     </div>
                   );
