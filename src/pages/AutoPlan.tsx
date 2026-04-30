@@ -1050,12 +1050,9 @@ const AutoPlan = () => {
           {/* Step 1: Duration */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
-                1
-              </div>
               <Label className="text-base font-semibold">Select Duration</Label>
             </div>
-            <div className="space-y-2 sm:ml-11">
+            <div className="space-y-2">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-muted-foreground">Practice length</span>
                 <div className="flex items-center gap-2">
@@ -1107,9 +1104,6 @@ const AutoPlan = () => {
           {/* Step 2: Focus Areas */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
-                2
-              </div>
               <div className="min-w-0">
                 <Label className="text-base font-semibold">Choose Focus Areas</Label>
                 <p className="text-xs text-muted-foreground sm:text-sm">
@@ -1117,7 +1111,7 @@ const AutoPlan = () => {
                 </p>
               </div>
             </div>
-            <div className="sm:ml-11">
+            <div>
               <div className="flex flex-col gap-2">
                 {focusOptions.map((option) => {
                   const isSelected = selectedFocuses.includes(option.id);
@@ -1182,12 +1176,9 @@ const AutoPlan = () => {
           {/* Step 3: Goals */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
-                3
-              </div>
               <Label className="text-base font-semibold">Add Today's Goals</Label>
             </div>
-            <div className="space-y-2 sm:ml-11">
+            <div className="space-y-2">
               <div className="relative">
                 <Textarea
                   placeholder="E.g., fix turnovers, prep for Friday opponent, improve press break, increase communication…"
