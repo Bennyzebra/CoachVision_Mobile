@@ -1050,12 +1050,9 @@ const AutoPlan = () => {
           {/* Step 1: Duration */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
-                1
-              </div>
               <Label className="text-base font-semibold">Select Duration</Label>
             </div>
-            <div className="space-y-2 sm:ml-11">
+            <div className="space-y-2">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-muted-foreground">Practice length</span>
                 <div className="flex items-center gap-2">
@@ -1107,9 +1104,6 @@ const AutoPlan = () => {
           {/* Step 2: Focus Areas */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
-                2
-              </div>
               <div className="min-w-0">
                 <Label className="text-base font-semibold">Choose Focus Areas</Label>
                 <p className="text-xs text-muted-foreground sm:text-sm">
@@ -1117,7 +1111,7 @@ const AutoPlan = () => {
                 </p>
               </div>
             </div>
-            <div className="sm:ml-11">
+            <div>
               <div className="flex flex-col gap-2">
                 {focusOptions.map((option) => {
                   const isSelected = selectedFocuses.includes(option.id);
@@ -1157,11 +1151,7 @@ const AutoPlan = () => {
                       </span>
                       <button
                         type="button"
-                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center justify-self-end rounded-full border transition ${
-                          isPrimary
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:bg-primary/5 hover:text-primary"
-                        }`}
+                        className="group inline-flex h-11 w-11 shrink-0 items-center justify-center justify-self-end"
                         onMouseDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -1170,7 +1160,15 @@ const AutoPlan = () => {
                         aria-pressed={isPrimary}
                         aria-label={`Set ${option.label} as primary focus`}
                       >
-                        <Star className={`h-3 w-3 ${isPrimary ? "fill-current" : ""}`} />
+                        <span
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition ${
+                            isPrimary
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-muted-foreground/30 text-muted-foreground group-hover:border-primary group-hover:bg-primary/5 group-hover:text-primary"
+                          }`}
+                        >
+                          <Star className={`h-3 w-3 ${isPrimary ? "fill-current" : ""}`} />
+                        </span>
                       </button>
                     </div>
                   );
@@ -1182,12 +1180,9 @@ const AutoPlan = () => {
           {/* Step 3: Goals */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground sm:h-9 sm:w-9">
-                3
-              </div>
               <Label className="text-base font-semibold">Add Today's Goals</Label>
             </div>
-            <div className="space-y-2 sm:ml-11">
+            <div className="space-y-2">
               <div className="relative">
                 <Textarea
                   placeholder="Fix turnovers, prep for the game on Friday, strengthen our defense..."
