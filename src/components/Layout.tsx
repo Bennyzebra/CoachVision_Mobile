@@ -213,7 +213,7 @@ export const Layout = ({ children }: LayoutProps) => {
       }
 
       const viewportWidth = Math.max(window.innerWidth, 1);
-      const nextProgress = clampPagerProgress(pagerStartProgressRef.current + deltaX / viewportWidth);
+      const nextProgress = clampPagerProgress(pagerStartProgressRef.current - deltaX / viewportWidth);
       setPagerProgress(nextProgress);
       return "horizontal";
     },
