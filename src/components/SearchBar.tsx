@@ -20,10 +20,12 @@ export const SearchBar = () => {
   const mobilePager = useMobilePager();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [mobilePagerDragOffset, setMobilePagerDragOffset] = useState<number | null>(null);
   const touchStartXRef = useRef<number | null>(null);
   const touchDeltaXRef = useRef(0);
   const suppressClickRef = useRef(false);
   const hasPointerCaptureRef = useRef(false);
+  const mobilePagerStartOffsetRef = useRef(0);
 
   const isAutoPlanActive =
     location.pathname === "/" ||
@@ -92,7 +94,8 @@ export const SearchBar = () => {
   const isAutoPlanHighlighted = isMobilePagerEnabled ? pagerProgress < 0.5 : isAutoPlanActive;
   const isLibraryHighlighted = isMobilePagerEnabled ? pagerProgress >= 0.5 : isLibraryActive;
   const mobilePagerGap = 12;
-  const mobilePagerTrackOffset = containerWidth > 0 ? -pagerProgress * (containerWidth + mobilePagerGap) : 0;
+  const mobilePagerRestingOffset = containerWidth > 0 ? -pagerProgress * (containerWidth + mobilePagerGap) : 0;
+  const mobilePagerTrackOffset = mobilePagerDragOffset ?? mobilePagerRestingOffset;
   const mobilePagerTransition = mobilePager?.isDragging
     ? "none"
     : "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)";
@@ -120,6 +123,8 @@ export const SearchBar = () => {
     suppressClickRef.current = false;
     hasPointerCaptureRef.current = false;
     if (isMobilePagerEnabled) {
+      mobilePagerStartOffsetRef.current = mobilePagerRestingOffset;
+      setMobilePagerDragOffset(null);
       mobilePager?.beginDrag(event.clientX, event.clientY);
     }
   };
@@ -130,6 +135,8 @@ export const SearchBar = () => {
     if (isMobilePagerEnabled) {
       const intent = mobilePager?.updateDrag(event.clientX, event.clientY);
       if (intent === "horizontal") {
+        const deltaX = event.clientX - touchStartXRef.current;
+        setMobilePagerDragOffset(mobilePagerStartOffsetRef.current - deltaX);
         suppressClickRef.current = true;
         if (!hasPointerCaptureRef.current) {
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -151,6 +158,7 @@ export const SearchBar = () => {
       touchStartXRef.current = null;
       touchDeltaXRef.current = 0;
       mobilePager?.endDrag();
+      setMobilePagerDragOffset(null);
       window.setTimeout(() => {
         suppressClickRef.current = false;
         hasPointerCaptureRef.current = false;
