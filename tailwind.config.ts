@@ -1,15 +1,24 @@
 import type { Config } from "tailwindcss";
 
+const mobileOnlyScreens = {
+  sm: "9999px",
+  md: "10000px",
+  lg: "10001px",
+  xl: "10002px",
+  "2xl": "10003px",
+};
+
 export default {
   darkMode: ["class"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
   theme: {
+    screens: mobileOnlyScreens,
     container: {
       center: true,
       padding: "2rem",
       screens: {
-        "2xl": "1400px",
+        "2xl": mobileOnlyScreens["2xl"],
       },
     },
     extend: {
