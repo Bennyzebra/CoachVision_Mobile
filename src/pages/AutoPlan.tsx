@@ -1170,7 +1170,7 @@ const AutoPlan = () => {
                         aria-pressed={isPrimary}
                         aria-label={`Set ${option.label} as primary focus`}
                       >
-                        <Star className={`h-4 w-4 ${isPrimary ? "fill-current" : ""}`} />
+                        <Star className={`h-3 w-3 ${isPrimary ? "fill-current" : ""}`} />
                       </button>
                     </div>
                   );
