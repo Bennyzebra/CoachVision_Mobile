@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Users, Target, Calendar, Save, Sparkles } from "lucide-react";
+import { Users, Target, Calendar, Save } from "lucide-react";
 import { useTeam } from "@/contexts/TeamContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -202,22 +202,6 @@ const handleSave = () => {
             </div>
           </div>
         </CardHeader>
-      </Card>
-
-      {/* AI Optimization Notice */}
-      <Card className="rounded-xl border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
-        <CardContent className="p-4 sm:py-4">
-          <div className="flex items-start gap-3">
-            <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-            <div>
-             <p className="font-medium text-amber-800 dark:text-amber-200">Optimize Your Practice Plans</p>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                These settings help our AI generate better practice plans tailored to your team size, age group, and
-                position distribution.
-              </p>
-            </div>
-          </div>
-        </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
