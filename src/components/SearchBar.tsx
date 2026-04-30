@@ -91,6 +91,11 @@ export const SearchBar = () => {
   const activeIndicatorTravel = Math.max(containerWidth - 56, 0);
   const isAutoPlanHighlighted = isMobilePagerEnabled ? pagerProgress < 0.5 : isAutoPlanActive;
   const isLibraryHighlighted = isMobilePagerEnabled ? pagerProgress >= 0.5 : isLibraryActive;
+  const mobilePagerGap = 12;
+  const mobilePagerTrackOffset = containerWidth > 0 ? -pagerProgress * (containerWidth + mobilePagerGap) : 0;
+  const mobilePagerTransition = mobilePager?.isDragging
+    ? "none"
+    : "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)";
 
   useEffect(() => {
     const element = containerRef.current;
@@ -169,6 +174,93 @@ export const SearchBar = () => {
       suppressClickRef.current = false;
     }, 120);
   };
+
+  if (isMobilePagerEnabled) {
+    const renderPagerPill = (target: "autoplan" | "library") => {
+      const isAutoPlanTarget = target === "autoplan";
+      const isActiveTarget = isAutoPlanTarget ? pagerProgress < 0.5 : pagerProgress >= 0.5;
+      const pillLabel = isAutoPlanTarget ? getStatusLabel("/") : getStatusLabel("/drills");
+      const handleAutoPlanClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        if (suppressClickRef.current) return;
+        mobilePager?.goToPage("autoplan");
+      };
+      const handleLibraryClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        if (suppressClickRef.current) return;
+        mobilePager?.goToPage("library");
+      };
+
+      return (
+        <div
+          className="flex h-12 shrink-0 items-center overflow-hidden rounded-full bg-muted px-2"
+          style={{ width: containerWidth || undefined }}
+          aria-hidden={!isActiveTarget}
+        >
+          <button
+            onClick={handleAutoPlanClick}
+            tabIndex={isActiveTarget ? 0 : -1}
+            className={cn(
+              "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+              isAutoPlanTarget
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+            )}
+            title="Auto-Plan"
+          >
+            <Sparkles className="h-5 w-5" />
+          </button>
+
+          <div className="mx-2 h-6 w-[1px] shrink-0 bg-border" />
+
+          <div className="flex h-10 min-w-0 flex-1 items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-medium text-foreground">
+            {pillLabel}
+          </div>
+
+          <div className="mx-2 h-6 w-[1px] shrink-0 bg-border" />
+
+          <button
+            onClick={handleLibraryClick}
+            tabIndex={isActiveTarget ? 0 : -1}
+            className={cn(
+              "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+              isAutoPlanTarget
+                ? "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+                : "bg-primary text-primary-foreground shadow-sm"
+            )}
+            title="Drill Library"
+          >
+            <Library className="h-5 w-5" />
+          </button>
+        </div>
+      );
+    };
+
+    return (
+      <div className="flex w-full flex-col items-center">
+        <div
+          ref={containerRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+          className="relative h-12 w-[19rem] max-w-[calc(100vw-2rem)] touch-pan-y overflow-hidden"
+        >
+          <div
+            className="flex h-full will-change-transform"
+            style={{
+              gap: `${mobilePagerGap}px`,
+              transform: `translate3d(${mobilePagerTrackOffset}px, 0, 0)`,
+              transition: mobilePagerTransition,
+            }}
+          >
+            {renderPagerPill("autoplan")}
+            {renderPagerPill("library")}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center w-full">
