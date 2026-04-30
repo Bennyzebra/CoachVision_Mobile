@@ -50,6 +50,12 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(210 100% 40%), hsl(210 100% 50%));
     --gradient-accent: linear-gradient(135deg, hsl(25 100% 63%), hsl(25 100% 73%));
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --app-safe-area-top: env(safe-area-inset-top, 0px);
+    --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --mobile-header-content-height: 3.5rem;
+    --mobile-header-top-padding: calc(var(--app-safe-area-top) + 0.5rem);
+    --mobile-header-height: calc(var(--mobile-header-top-padding) + var(--mobile-header-content-height));
+    --mobile-content-top-offset: calc(var(--mobile-header-height) + 2rem);
   }
 
   .dark {
@@ -127,11 +133,11 @@ All colors MUST be HSL.
 
 @layer utilities {
   .mobile-safe-top {
-    padding-top: env(safe-area-inset-top);
+    padding-top: var(--app-safe-area-top);
   }
 
   .mobile-safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--app-safe-area-bottom);
   }
 
   .touch-scroll {
