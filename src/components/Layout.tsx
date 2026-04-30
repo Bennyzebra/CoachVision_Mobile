@@ -406,9 +406,9 @@ export const Layout = ({ children }: LayoutProps) => {
             {/* Left: Team name & logo */}
            <div className="flex items-center gap-3 z-10">
               {currentTeam?.logo_url ? (
-                <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-10 w-10 rounded-full object-cover" />
+                <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-[2.875rem] w-[2.875rem] rounded-full object-cover" />
               ) : (
-                <img src={logo} alt="CoachVision" className="h-[7rem]" />
+                <img src={logo} alt="CoachVision" className="h-[8.05rem]" />
               )}
               <span className="hidden sm:block h-6 w-px rounded-full bg-foreground/40" aria-hidden="true" />
               <span className="font-semibold text-lg hidden sm:block">
@@ -490,9 +490,9 @@ export const Layout = ({ children }: LayoutProps) => {
               aria-label="Go to Auto Plan"
             >
               {currentTeam?.logo_url ? (
-                <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-9 w-9 rounded-full object-cover" />
+                <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-[2.5875rem] w-[2.5875rem] rounded-full object-cover" />
               ) : (
-                <img src={logo} alt="CoachVision" className="h-12 w-auto shrink-0" />
+                <img src={logo} alt="CoachVision" className="h-[3.45rem] w-auto shrink-0" />
               )}
               <span className="h-6 w-px shrink-0 rounded-full bg-border" aria-hidden="true" />
               <span className="truncate text-base font-semibold">
