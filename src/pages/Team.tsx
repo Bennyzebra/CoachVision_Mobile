@@ -6,11 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Users, Target, Calendar, Save } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { getTeamSchoolClubDisplay } from "./teamHeaderDisplay";
+import { getPositionAssignmentLabel, getTeamSportRecapLabel } from "./teamHeaderDisplay";
 
 interface TeamRosterConfig {
   totalPlayers: number;
@@ -35,8 +34,7 @@ const DEFAULT_CONFIG: TeamRosterConfig = {
 };
 
 const Team = () => {
-  const { currentTeam, profile, setCurrentTeam, refreshTeams } = useTeam();
-  const { profile: authProfile } = useAuth();
+  const { currentTeam, setCurrentTeam, refreshTeams } = useTeam();
   const { toast } = useToast();
 
   const [config, setConfig] = useState<TeamRosterConfig>(() => {
@@ -56,7 +54,7 @@ const Team = () => {
       setConfig(DEFAULT_CONFIG);
     }
     setHasChanges(false);
-        setTeamNameInput(currentTeam?.team_name || "");
+    setTeamNameInput(currentTeam?.team_name || "");
     setIsEditingName(false);
   }, [currentTeam?.id, currentTeam?.team_name]);
 
@@ -79,7 +77,7 @@ const Team = () => {
     setHasChanges(true);
   };
 
-const handleSave = () => {
+  const handleSave = () => {
     localStorage.setItem(
       `team-roster-config-${currentTeam?.id || "default"}`,
       JSON.stringify(config)
@@ -94,13 +92,12 @@ const handleSave = () => {
 
   const totalPositions =
     config.positionCounts.guards + config.positionCounts.forwards + config.positionCounts.centers;
-  const schoolClubDisplay = getTeamSchoolClubDisplay({
-    profileOrganization: authProfile?.organization,
-    teamOrganization: currentTeam?.organization,
-    teamSport: currentTeam?.sport,
-  });
+  const teamSportLabel = getTeamSportRecapLabel(currentTeam?.sport);
+  const playerCountLabel = `${config.totalPlayers} ${config.totalPlayers === 1 ? "player" : "players"}`;
+  const positionAssignmentLabel = getPositionAssignmentLabel(totalPositions, config.totalPlayers);
+  const positionsBalanced = totalPositions === config.totalPlayers;
 
-    const handleTeamNameSave = async () => {
+  const handleTeamNameSave = async () => {
     if (!currentTeam || !teamNameInput.trim() || teamNameInput === currentTeam.team_name) {
       setTeamNameInput(currentTeam?.team_name || "");
       setIsEditingName(false);
@@ -156,29 +153,18 @@ const handleSave = () => {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-muted-foreground">Configure your team for optimized practice planning</p>
-        </div>
-        <Button onClick={handleSave} disabled={!hasChanges} className="h-11 w-full gap-2 sm:w-auto">
-          <Save className="h-4 w-4" />
-          Save Changes
-        </Button>
-      </div>
-
-      {/* Team Info Card */}
-      <Card className="rounded-xl border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-        <CardHeader className="p-4 sm:p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <Users className="h-6 w-6 text-primary" />
+      {/* Team Recap Header */}
+      <Card className="rounded-xl border-primary/15 bg-background shadow-sm">
+        <CardHeader className="space-y-3 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Users className="h-5 w-5 text-primary" />
             </div>
-            <div className="min-w-0 flex-1 space-y-1">
+            <div className="min-w-0 flex-1 space-y-3">
               {isEditingName ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
-                    className="h-11"
+                    className="h-10"
                     value={teamNameInput}
                     onChange={(e) => setTeamNameInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -190,7 +176,7 @@ const handleSave = () => {
                     autoFocus
                     disabled={isSavingName}
                   />
-                  <Button className="h-11" size="sm" onClick={handleTeamNameSave} disabled={isSavingName}>
+                  <Button className="h-10" size="sm" onClick={handleTeamNameSave} disabled={isSavingName}>
                     {isSavingName ? "Saving..." : "Save"}
                   </Button>
                 </div>
@@ -203,10 +189,38 @@ const handleSave = () => {
                   <CardTitle className="text-xl leading-tight">{teamNameInput || currentTeam.team_name}</CardTitle>
                 </button>
               )}
-              <CardDescription className="text-sm text-muted-foreground">
-                Coach {profile?.coach_name || "Coach"}
-              </CardDescription>
-              {schoolClubDisplay && <CardDescription>{schoolClubDisplay}</CardDescription>}
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="rounded-md bg-primary/10 text-primary hover:bg-primary/10">
+                  {teamSportLabel}
+                </Badge>
+                <Badge variant="outline" className="rounded-md bg-background">
+                  {playerCountLabel}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="rounded-md border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200"
+                >
+                  {config.positionCounts.guards} G
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="rounded-md border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-200"
+                >
+                  {config.positionCounts.forwards} F
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="rounded-md border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-200"
+                >
+                  {config.positionCounts.centers} C
+                </Badge>
+                <Badge
+                  variant={positionsBalanced ? "secondary" : "destructive"}
+                  className="rounded-md"
+                >
+                  {positionAssignmentLabel}
+                </Badge>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -416,34 +430,14 @@ const handleSave = () => {
         </CardContent>
       </Card>
 
-      {/* Summary Card */}
-      <Card className="rounded-xl bg-muted/30">
-        <CardHeader className="p-4 sm:p-6">
-          <CardTitle className="text-lg">Configuration Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-          <div className="grid grid-cols-2 gap-3 text-center md:grid-cols-4 md:gap-4">
-            <div className="p-4 rounded-lg bg-background border">
-              <div className="text-3xl font-bold text-primary">{config.totalPlayers}</div>
-              <div className="text-sm text-muted-foreground">Total Players</div>
-            </div>
-            <div className="p-4 rounded-lg bg-background border">
-              <div className="text-3xl font-bold text-primary">{config.ageRangeMin}-{config.ageRangeMax}</div>
-              <div className="text-sm text-muted-foreground">Age Range</div>
-            </div>
-            <div className="p-4 rounded-lg bg-background border">
-              <div className="text-3xl font-bold text-blue-600">{config.positionCounts.guards}</div>
-              <div className="text-sm text-muted-foreground">Guards</div>
-            </div>
-            <div className="p-4 rounded-lg bg-background border">
-              <div className="text-3xl font-bold text-green-600">
-                {config.positionCounts.forwards + config.positionCounts.centers}
-              </div>
-              <div className="text-sm text-muted-foreground">Bigs</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {hasChanges && (
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur sm:bottom-0 sm:mx-0 sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+          <Button onClick={handleSave} className="h-11 w-full gap-2 sm:w-auto">
+            <Save className="h-4 w-4" />
+            Save Changes
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
