@@ -55,6 +55,29 @@ const SettingRow = ({ label, description, control, destructive = false }: Settin
   </div>
 );
 
+type PracticeSettingRowProps = {
+  label: string;
+  description?: string;
+  control: ReactNode;
+  inlineControl?: boolean;
+};
+
+const PracticeSettingRow = ({ label, description, control, inlineControl = false }: PracticeSettingRowProps) => (
+  <div
+    className={
+      inlineControl
+        ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[1fr_auto] sm:gap-6 sm:py-4"
+        : "grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-6 sm:py-4"
+    }
+  >
+    <div className="min-w-0">
+      <p className="text-sm font-medium leading-snug text-foreground">{label}</p>
+      {description ? <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p> : null}
+    </div>
+    <div className={inlineControl ? "justify-self-end" : "w-full sm:w-auto sm:justify-self-end"}>{control}</div>
+  </div>
+);
+
 type SettingsSectionProps = {
   id: string;
   title: string;
@@ -89,7 +112,7 @@ const SettingsPage = () => {
     coachName: state.profile.coachName || authProfile?.coach_name || "Coach",
     email: state.profile.email || authProfile?.email || "",
     sport: state.profile.sport || "Basketball",
-    organization: state.profile.organization || "",
+    organization: state.profile.organization || authProfile?.organization || "",
   });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
@@ -123,11 +146,12 @@ const SettingsPage = () => {
       coachName: state.profile.coachName || authProfile?.coach_name || prev.coachName,
       email: state.profile.email || authProfile?.email || prev.email,
       sport: state.profile.sport || prev.sport,
-      organization: state.profile.organization || prev.organization,
+      organization: state.profile.organization || authProfile?.organization || prev.organization,
     }));
   }, [
     authProfile?.coach_name,
     authProfile?.email,
+    authProfile?.organization,
     state.profile.coachName,
     state.profile.email,
     state.profile.organization,
@@ -164,8 +188,15 @@ const SettingsPage = () => {
   );
 
   const handleSaveProfile = async () => {
-  updateProfile(profileForm);
-    await updateAuthProfile({ coach_name: profileForm.coachName });
+    const trimmedOrganization = profileForm.organization.trim();
+    const nextProfileForm = { ...profileForm, organization: trimmedOrganization };
+
+    updateProfile(nextProfileForm);
+    setProfileForm(nextProfileForm);
+    await updateAuthProfile({
+      coach_name: profileForm.coachName,
+      organization: trimmedOrganization || null,
+    });
     toast.success("Profile updated successfully.");
     setIsEditingProfile(false);
   };
@@ -175,7 +206,7 @@ const SettingsPage = () => {
       coachName: state.profile.coachName || authProfile?.coach_name || "Coach",
       email: state.profile.email || authProfile?.email || "",
       sport: state.profile.sport || "Basketball",
-      organization: state.profile.organization || "",
+      organization: state.profile.organization || authProfile?.organization || "",
     });
     setIsEditingProfile(false);
   };
@@ -390,12 +421,15 @@ const SettingsPage = () => {
         title="Practice Preferences"
         description="Set default values used whenever you create a new practice plan."
       >
-        <SettingRow
+        <PracticeSettingRow
           label="Default practice length"
           description="Starting total duration for generated plans."
           control={
-            <div className="w-56 space-y-1">
-              <p className="text-right text-xs text-muted-foreground">{practicePreferences.defaultPracticeLength} minutes</p>
+            <div className="w-full space-y-2 sm:w-56">
+              <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>Duration</span>
+                <span>{practicePreferences.defaultPracticeLength} minutes</span>
+              </div>
               <Slider
                 value={[practicePreferences.defaultPracticeLength]}
                 min={30}
@@ -408,12 +442,15 @@ const SettingsPage = () => {
             </div>
           }
         />
-        <SettingRow
+        <PracticeSettingRow
           label="Default warmup length"
           description="How long warmups should run by default."
           control={
-            <div className="w-56 space-y-1">
-              <p className="text-right text-xs text-muted-foreground">{practicePreferences.defaultWarmupLength} minutes</p>
+            <div className="w-full space-y-2 sm:w-56">
+              <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>Warmup</span>
+                <span>{practicePreferences.defaultWarmupLength} minutes</span>
+              </div>
               <Slider
                 value={[practicePreferences.defaultWarmupLength]}
                 min={5}
@@ -426,7 +463,7 @@ const SettingsPage = () => {
             </div>
           }
         />
-        <SettingRow
+        <PracticeSettingRow
           label="Intensity preference"
           description="Choose how demanding generated plans should feel."
           control={
@@ -436,7 +473,7 @@ const SettingsPage = () => {
                 setPracticePreferences((prev) => ({ ...prev, intensityPreference: value }))
               }
             >
-              <SelectTrigger className="w-44">
+              <SelectTrigger className="w-full sm:w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -447,9 +484,10 @@ const SettingsPage = () => {
             </Select>
           }
         />
-        <SettingRow
+        <PracticeSettingRow
           label="Show advanced drills"
           description="Include more advanced options in recommendations."
+          inlineControl
           control={
             <Switch
               checked={practicePreferences.showAdvancedDrills}
@@ -459,9 +497,10 @@ const SettingsPage = () => {
             />
           }
         />
-        <SettingRow
+        <PracticeSettingRow
           label="Show community drills"
           description="Display shared drills from the CoachVision community."
+          inlineControl
           control={
             <Switch
               checked={practicePreferences.showCommunityDrills}
@@ -471,9 +510,10 @@ const SettingsPage = () => {
             />
           }
         />
-        <SettingRow
+        <PracticeSettingRow
           label="Hide newly added drills by default"
           description="Keep your newly added drills private until reviewed."
+          inlineControl
           control={
             <Switch
               checked={practicePreferences.hideAddedByDefault}
@@ -483,11 +523,11 @@ const SettingsPage = () => {
             />
           }
         />
-        <SettingRow
+        <PracticeSettingRow
           label="Focus distribution"
           description="Adjust your default offense, defense, and conditioning mix."
           control={
-            <div className="w-64 space-y-2 text-xs">
+            <div className="w-full space-y-2.5 text-xs sm:w-64">
               {([
                 ["offense", "Offense"],
                 ["defense", "Defense"],
@@ -515,8 +555,8 @@ const SettingsPage = () => {
             </div>
           }
         />
-        <div className="flex justify-end px-4 py-3">
-          <Button size="sm" onClick={handleSavePracticePreferences}>
+        <div className="flex px-4 py-3 pb-5 sm:justify-end sm:pb-3">
+          <Button className="h-11 w-full sm:h-9 sm:w-auto" size="sm" onClick={handleSavePracticePreferences}>
             Save Practice Preferences
           </Button>
         </div>
