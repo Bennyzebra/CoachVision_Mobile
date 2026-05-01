@@ -336,12 +336,12 @@ const Team = () => {
       {/* Position Distribution */}
       <Card className="rounded-xl">
         <CardHeader className="p-4 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
               <CardTitle>Position Distribution</CardTitle>
             </div>
-            <Badge variant={totalPositions === config.totalPlayers ? "default" : "destructive"}>
+            <Badge className="w-fit" variant={totalPositions === config.totalPlayers ? "default" : "destructive"}>
               {totalPositions} / {config.totalPlayers} assigned
             </Badge>
           </div>
@@ -350,12 +350,12 @@ const Team = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-3">
             {/* Guards */}
-            <div className="rounded-xl border bg-background/50 p-4 space-y-3">
+            <div className="space-y-3 rounded-lg border bg-background/50 p-4">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Guards</Label>
-               <Badge
+                <Badge
                   variant="secondary"
                   className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                 >
@@ -374,7 +374,7 @@ const Team = () => {
             </div>
 
             {/* Forwards */}
-            <div className="rounded-xl border bg-background/50 p-4 space-y-3">
+            <div className="space-y-3 rounded-lg border bg-background/50 p-4">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Forwards</Label>
                 <Badge
@@ -396,7 +396,7 @@ const Team = () => {
             </div>
 
             {/* Centers */}
-            <div className="rounded-xl border bg-background/50 p-4 space-y-3">
+            <div className="space-y-3 rounded-lg border bg-background/50 p-4">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Centers</Label>
                 <Badge
@@ -431,8 +431,8 @@ const Team = () => {
       </Card>
 
       {hasChanges && (
-        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur sm:bottom-0 sm:mx-0 sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
-          <Button onClick={handleSave} className="h-11 w-full gap-2 sm:w-auto">
+        <div className="z-30 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur md:sticky md:bottom-0 md:mx-0 md:flex md:justify-end md:border-0 md:bg-transparent md:px-0 md:py-0">
+          <Button onClick={handleSave} className="h-11 w-full gap-2 md:w-auto">
             <Save className="h-4 w-4" />
             Save Changes
           </Button>
