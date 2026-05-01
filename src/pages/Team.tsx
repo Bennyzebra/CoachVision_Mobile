@@ -6,9 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Users, Target, Calendar, Save } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getTeamSchoolClubDisplay } from "./teamHeaderDisplay";
 
 interface TeamRosterConfig {
   totalPlayers: number;
@@ -34,6 +36,7 @@ const DEFAULT_CONFIG: TeamRosterConfig = {
 
 const Team = () => {
   const { currentTeam, profile, setCurrentTeam, refreshTeams } = useTeam();
+  const { profile: authProfile } = useAuth();
   const { toast } = useToast();
 
   const [config, setConfig] = useState<TeamRosterConfig>(() => {
@@ -91,6 +94,11 @@ const handleSave = () => {
 
   const totalPositions =
     config.positionCounts.guards + config.positionCounts.forwards + config.positionCounts.centers;
+  const schoolClubDisplay = getTeamSchoolClubDisplay({
+    profileOrganization: authProfile?.organization,
+    teamOrganization: currentTeam?.organization,
+    teamSport: currentTeam?.sport,
+  });
 
     const handleTeamNameSave = async () => {
     if (!currentTeam || !teamNameInput.trim() || teamNameInput === currentTeam.team_name) {
@@ -198,7 +206,7 @@ const handleSave = () => {
               <CardDescription className="text-sm text-muted-foreground">
                 Coach {profile?.coach_name || "Coach"}
               </CardDescription>
-              <CardDescription>{currentTeam.organization || currentTeam.sport}</CardDescription>
+              {schoolClubDisplay && <CardDescription>{schoolClubDisplay}</CardDescription>}
             </div>
           </div>
         </CardHeader>
