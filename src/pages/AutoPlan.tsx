@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppState } from "@/hooks/useAppState";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -1042,19 +1042,15 @@ const AutoPlan = () => {
             <Zap className="h-5 w-5 text-primary" />
             Practice Configuration
           </CardTitle>
-          <CardDescription className="text-sm">
-            Configure your practice in 3 simple steps
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 p-3 sm:space-y-7 sm:p-5">
           {/* Step 1: Duration */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <Label className="text-base font-semibold">Select Duration</Label>
+              <Label className="text-base font-semibold">Practice Length</Label>
             </div>
             <div className="space-y-2">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm text-muted-foreground">Practice length</span>
+              <div className="flex justify-end">
                 <div className="flex items-center gap-2">
                   {isEditingDuration ? (
                     <Input

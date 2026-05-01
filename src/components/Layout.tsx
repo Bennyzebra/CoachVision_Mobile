@@ -13,6 +13,7 @@ import { MobilePagerContext, type MobilePagerContextValue, type MobilePagerTarge
 import { MobilePrimaryPager } from "@/components/MobilePrimaryPager";
 import { SearchBar } from "@/components/SearchBar";
 import { getMobileHeaderHideProgress } from "@/components/mobileHeaderMotion";
+import { TEAM_IDENTITY_DESTINATION } from "@/components/teamIdentityNavigation";
 import { useTeam } from "@/contexts/TeamContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "next-themes";
@@ -421,7 +422,12 @@ export const Layout = ({ children }: LayoutProps) => {
         <div   className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Left: Team name & logo */}
-           <div className="flex items-center gap-3 z-10">
+            <button
+              type="button"
+              className="z-10 flex items-center gap-3 rounded-md text-left transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              onClick={() => handleNavigate(TEAM_IDENTITY_DESTINATION)}
+              aria-label="Go to Team & Roster"
+            >
               {currentTeam?.logo_url ? (
                 <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-[2.875rem] w-[2.875rem] rounded-full object-cover" />
               ) : (
@@ -431,7 +437,7 @@ export const Layout = ({ children }: LayoutProps) => {
               <span className="font-semibold text-lg hidden sm:block">
                 {currentTeam?.team_name || "CoachVision"}
               </span>
-            </div>
+            </button>
 
            {/* Center: Search Bar - absolutely positioned to always be centered on screen */}
             <div className="hidden md:flex md:items-center absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
@@ -505,8 +511,8 @@ export const Layout = ({ children }: LayoutProps) => {
             <button
               type="button"
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
-              onClick={() => handleNavigate("/")}
-              aria-label="Go to Auto Plan"
+              onClick={() => handleNavigate(TEAM_IDENTITY_DESTINATION)}
+              aria-label="Go to Team & Roster"
             >
               {currentTeam?.logo_url ? (
                 <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-[2.5875rem] w-[2.5875rem] rounded-full object-cover" />
