@@ -1,15 +1,20 @@
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Users, Target, Calendar, Save } from "lucide-react";
+import { Camera, Users, Target, Calendar, Save } from "lucide-react";
 import { useTeam } from "@/contexts/TeamContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getPositionAssignmentLabel, getTeamSportRecapLabel } from "./teamHeaderDisplay";
+import {
+  getTeamLogoStoragePath,
+  TEAM_LOGOS_BUCKET,
+  validateTeamLogoFile,
+} from "./teamLogoUpload";
 
 interface TeamRosterConfig {
   totalPlayers: number;
@@ -36,6 +41,7 @@ const DEFAULT_CONFIG: TeamRosterConfig = {
 const Team = () => {
   const { currentTeam, setCurrentTeam, refreshTeams } = useTeam();
   const { toast } = useToast();
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const [config, setConfig] = useState<TeamRosterConfig>(() => {
     const saved = localStorage.getItem(`team-roster-config-${currentTeam?.id || "default"}`);
@@ -45,6 +51,9 @@ const Team = () => {
   const [teamNameInput, setTeamNameInput] = useState(currentTeam?.team_name || "");
   const [isEditingName, setIsEditingName] = useState(false);
   const [isSavingName, setIsSavingName] = useState(false);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
+  const [pendingLogoPreviewUrl, setPendingLogoPreviewUrl] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   
   useEffect(() => {
     const saved = localStorage.getItem(`team-roster-config-${currentTeam?.id || "default"}`);
@@ -56,7 +65,17 @@ const Team = () => {
     setHasChanges(false);
     setTeamNameInput(currentTeam?.team_name || "");
     setIsEditingName(false);
+    setPendingLogoFile(null);
+    setPendingLogoPreviewUrl(null);
   }, [currentTeam?.id, currentTeam?.team_name]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingLogoPreviewUrl) {
+        URL.revokeObjectURL(pendingLogoPreviewUrl);
+      }
+    };
+  }, [pendingLogoPreviewUrl]);
 
   const updateConfig = (updates: Partial<TeamRosterConfig>) => {
     setConfig((prev) => ({ ...prev, ...updates }));
@@ -77,17 +96,104 @@ const Team = () => {
     setHasChanges(true);
   };
 
-  const handleSave = () => {
-    localStorage.setItem(
-      `team-roster-config-${currentTeam?.id || "default"}`,
-      JSON.stringify(config)
-    );
-    setHasChanges(false);
-    toast({
-      title: "Team settings saved",
-      description:
-        "Your roster configuration has been saved and will be used for practice planning.",
+  const handleTeamLogoSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    const validationError = validateTeamLogoFile(file);
+    if (validationError) {
+      toast({
+        title: "Unable to use that photo",
+        description: validationError,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPendingLogoFile(file);
+    setPendingLogoPreviewUrl(URL.createObjectURL(file));
+    setHasChanges(true);
+  };
+
+  const uploadPendingTeamLogo = async () => {
+    if (!currentTeam || !pendingLogoFile) {
+      return currentTeam;
+    }
+
+    const logoPath = getTeamLogoStoragePath({
+      coachId: currentTeam.coach_id,
+      teamId: currentTeam.id,
+      file: pendingLogoFile,
     });
+
+    const { error: uploadError } = await supabase.storage
+      .from(TEAM_LOGOS_BUCKET)
+      .upload(logoPath, pendingLogoFile, {
+        cacheControl: "3600",
+        contentType: pendingLogoFile.type,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message);
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(TEAM_LOGOS_BUCKET)
+      .getPublicUrl(logoPath);
+
+    const { data, error } = await supabase
+      .from("teams")
+      .update({ logo_url: publicUrlData.publicUrl })
+      .eq("id", currentTeam.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  };
+
+  const handleSave = async () => {
+    setIsSavingSettings(true);
+
+    try {
+      const updatedTeam = await uploadPendingTeamLogo();
+
+      localStorage.setItem(
+        `team-roster-config-${currentTeam?.id || "default"}`,
+        JSON.stringify(config)
+      );
+
+      if (updatedTeam) {
+        setCurrentTeam(updatedTeam);
+        await refreshTeams();
+      }
+
+      setPendingLogoFile(null);
+      setPendingLogoPreviewUrl(null);
+      setHasChanges(false);
+      toast({
+        title: pendingLogoFile ? "Team photo saved" : "Team settings saved",
+        description: pendingLogoFile
+          ? "Your team photo and roster settings have been saved."
+          : "Your roster configuration has been saved and will be used for practice planning.",
+      });
+    } catch (error) {
+      toast({
+        title: "Unable to save team settings",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   const totalPositions =
@@ -96,6 +202,7 @@ const Team = () => {
   const playerCountLabel = `${config.totalPlayers} ${config.totalPlayers === 1 ? "player" : "players"}`;
   const positionAssignmentLabel = getPositionAssignmentLabel(totalPositions, config.totalPlayers);
   const positionsBalanced = totalPositions === config.totalPlayers;
+  const teamLogoUrl = pendingLogoPreviewUrl ?? currentTeam.logo_url;
 
   const handleTeamNameSave = async () => {
     if (!currentTeam || !teamNameInput.trim() || teamNameInput === currentTeam.team_name) {
@@ -157,8 +264,35 @@ const Team = () => {
       <Card className="rounded-xl border-primary/15 bg-background shadow-sm">
         <CardHeader className="space-y-3 p-4 sm:p-5">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <Users className="h-5 w-5 text-primary" />
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                className="group relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-primary/10 ring-1 ring-primary/10 transition hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => logoInputRef.current?.click()}
+                aria-label="Choose team photo"
+                title="Choose team photo"
+              >
+                {teamLogoUrl ? (
+                  <img
+                    src={teamLogoUrl}
+                    alt={`${currentTeam.team_name} team photo`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Users className="h-6 w-6 text-primary" />
+                )}
+                <span className="absolute inset-0 bg-background/0 transition group-hover:bg-background/20" />
+                <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm">
+                  <Camera className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </button>
+              <input
+                ref={logoInputRef}
+                type="file"
+                className="sr-only"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleTeamLogoSelect}
+              />
             </div>
             <div className="min-w-0 flex-1 space-y-3">
               {isEditingName ? (
@@ -432,9 +566,9 @@ const Team = () => {
 
       {hasChanges && (
         <div className="z-30 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur md:sticky md:bottom-0 md:mx-0 md:flex md:justify-end md:border-0 md:bg-transparent md:px-0 md:py-0">
-          <Button onClick={handleSave} className="h-11 w-full gap-2 md:w-auto">
+          <Button onClick={handleSave} className="h-11 w-full gap-2 md:w-auto" disabled={isSavingSettings}>
             <Save className="h-4 w-4" />
-            Save Changes
+            {isSavingSettings ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       )}
