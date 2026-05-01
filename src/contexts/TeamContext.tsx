@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 
 interface Team {
   id: string;
+  coach_id: string;
   team_name: string;
   sport: string;
   organization: string | null;
