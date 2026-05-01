@@ -5,7 +5,6 @@ import {
   Settings,
   Send,
   LogOut,
-  HelpCircle,
   Users,
   ClipboardList,
 } from "lucide-react";
@@ -380,14 +379,6 @@ export const Layout = ({ children }: LayoutProps) => {
       <Separator />
       <Button
         variant="ghost"
-        className="h-12 w-full justify-start md:h-10"
-        onClick={() => window.open("https://docs.lovable.dev", "_blank")}
-      >
-        <HelpCircle className="mr-3 h-5 w-5 md:h-4 md:w-4" />
-        Get Help
-      </Button>
-      <Button
-        variant="ghost"
         className="h-12 w-full justify-start text-destructive md:h-10"
         onClick={signOut}
       >
@@ -513,7 +504,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   </span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[86vw] max-w-sm">
+              <SheetContent side="right" className="w-[86vw] max-w-sm !pt-[calc(var(--app-safe-area-top)+1.5rem)] [&>button]:top-[calc(var(--app-safe-area-top)+1rem)]">
                 <SheetHeader className="text-left">
                   <SheetTitle>Account</SheetTitle>
                 </SheetHeader>
