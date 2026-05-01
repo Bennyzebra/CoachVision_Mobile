@@ -12,6 +12,7 @@ import logo from "@/assets/CoachVision_Final.png";
 import { MobilePagerContext, type MobilePagerContextValue, type MobilePagerTarget } from "@/components/MobilePagerContext";
 import { MobilePrimaryPager } from "@/components/MobilePrimaryPager";
 import { SearchBar } from "@/components/SearchBar";
+import { getMobileHeaderHideProgress } from "@/components/mobileHeaderMotion";
 import { useTeam } from "@/contexts/TeamContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "next-themes";
@@ -59,7 +60,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const { theme = "system", setTheme } = useTheme();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMobileHeaderHidden, setIsMobileHeaderHidden] = useState(false);
+  const [mobileHeaderOffsetPx, setMobileHeaderOffsetPx] = useState(0);
+  const [isMobileHeaderTransitioning, setIsMobileHeaderTransitioning] = useState(true);
   const isMobileViewport = true;
   const [routeMotionDirection, setRouteMotionDirection] = useState<RouteMotionDirection>(null);
   const routePagerIndex = location.pathname === "/drills" ? 1 : 0;
@@ -74,6 +76,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const lastName = lastNameParts.join(" ");
   const coachDisplayName = lastName ? `${firstName} ${lastName}` : firstName;  
   const themeTriggerRef = useRef<HTMLButtonElement | null>(null);  
+  const mobileHeaderRef = useRef<HTMLElement | null>(null);
   const keepThemeSelectOpenRef = useRef(false);
   const lastScrollYRef = useRef(0);
   const lastTouchYRef = useRef<number | null>(null);
@@ -88,6 +91,14 @@ export const Layout = ({ children }: LayoutProps) => {
 
   const savePagerScrollPosition = useCallback((index: number) => {
     pagerScrollPositionsRef.current[index] = window.scrollY;
+  }, []);
+
+  const setMobileHeaderOffset = useCallback((nextOffsetPx: number, shouldTransition: boolean) => {
+    const nextOffset = Math.max(0, nextOffsetPx);
+    setIsMobileHeaderTransitioning(shouldTransition);
+    setMobileHeaderOffsetPx((currentOffset) =>
+      Math.abs(currentOffset - nextOffset) > 0.5 ? nextOffset : currentOffset
+    );
   }, []);
 
   useEffect(() => {
@@ -108,16 +119,31 @@ export const Layout = ({ children }: LayoutProps) => {
     const handleScroll = () => {
       const currentY = window.scrollY;
       const delta = currentY - lastScrollYRef.current;
+      const force = Math.abs(delta) + Math.abs(touchVelocityRef.current);
+      const headerHeight = mobileHeaderRef.current?.getBoundingClientRect().height ?? 0;
 
       if (currentY < 16) {
-        setIsMobileHeaderHidden(false);
+        setMobileHeaderOffset(0, true);
         lastScrollYRef.current = currentY;
         return;
       }
 
-      const force = Math.abs(delta) + Math.abs(touchVelocityRef.current);
-      if (force > 6) {
-        setIsMobileHeaderHidden(delta > 0);
+      if (delta > 0) {
+        const searchAnchor = location.pathname === "/"
+          ? document.querySelector<HTMLElement>("[data-mobile-header-hide-anchor]")
+          : null;
+
+        if (searchAnchor && headerHeight > 0) {
+          const progress = getMobileHeaderHideProgress({
+            headerHeight,
+            searchCardTop: searchAnchor.getBoundingClientRect().top,
+          });
+          setMobileHeaderOffset(progress * headerHeight, false);
+        } else if (force > 6 && headerHeight > 0) {
+          setMobileHeaderOffset(headerHeight, true);
+        }
+      } else if (force > 6 && delta < 0) {
+        setMobileHeaderOffset(0, true);
       }
 
       lastScrollYRef.current = currentY;
@@ -133,7 +159,7 @@ export const Layout = ({ children }: LayoutProps) => {
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
     };
-  }, []);
+  }, [location.pathname, setMobileHeaderOffset]);
 
   useEffect(() => {
     const handleRouteMotion = (event: Event) => {
@@ -466,11 +492,13 @@ export const Layout = ({ children }: LayoutProps) => {
       </nav>
 
       <header
+        ref={mobileHeaderRef}
         className={cn(
           "fixed inset-x-0 top-0 z-40 border-b border-border/80 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden",
-          "transition-transform duration-300 ease-out will-change-transform",
-          isMobileHeaderHidden ? "-translate-y-full" : "translate-y-0"
+          "will-change-transform",
+          isMobileHeaderTransitioning && "transition-transform duration-300 ease-out"
         )}
+        style={{ transform: `translate3d(0, -${mobileHeaderOffsetPx}px, 0)` }}
       >
         <div className="px-4 pt-[var(--mobile-header-top-padding)]">
           <div className="flex h-14 -translate-y-[var(--mobile-header-content-lift)] items-center justify-between gap-3">

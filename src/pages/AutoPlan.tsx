@@ -995,7 +995,7 @@ const AutoPlan = () => {
   return (
     <div className="space-y-5 sm:space-y-8">
      {/* Search-Driven Planning */}
-      <Card className="rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+      <Card data-mobile-header-hide-anchor className="rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
         <CardContent className="p-3 sm:py-4">
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
