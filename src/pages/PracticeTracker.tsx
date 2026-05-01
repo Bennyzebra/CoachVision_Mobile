@@ -224,36 +224,36 @@ const PracticeTracker = () => {
           </Button>
         </CardHeader>
         <CardContent className={`grid grid-cols-1 gap-3 p-4 pt-0 md:grid md:grid-cols-2 md:p-6 md:pt-0 lg:grid-cols-6 ${showFilters ? "grid" : "hidden"}`}>
-          <div className="space-y-1 lg:col-span-2">
+          <div className="min-w-0 space-y-1 lg:col-span-2">
             <Label>Search</Label>
             <Input className="h-11" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Title or notes" />
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label>From</Label>
-            <Input className="h-11" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            <Input className="h-11 w-full min-w-0 max-w-full" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label>To</Label>
-            <Input className="h-11" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <Input className="h-11 w-full min-w-0 max-w-full" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label>Status</Label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as typeof status)}
-              className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+              className="h-11 w-full min-w-0 max-w-full rounded-md border bg-background px-3 text-sm"
             >
               <option value="all">All</option>
               <option value="completed">Completed</option>
               <option value="planned">Planned</option>
             </select>
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label>Team</Label>
             <select
               value={teamFilter}
               onChange={(e) => setTeamFilter(e.target.value)}
-              className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+              className="h-11 w-full min-w-0 max-w-full rounded-md border bg-background px-3 text-sm"
             >
               <option value="all">Current team</option>
               {teams.map((team) => (
