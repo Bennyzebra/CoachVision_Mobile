@@ -32,7 +32,7 @@ const DrillLibrary = () => {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <div className="sticky top-0 z-20 -mx-4 space-y-4 border-b bg-background/95 px-4 pb-4 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pb-0">
+      <div data-mobile-header-hide-anchor className="sticky top-0 z-20 -mx-4 space-y-4 border-b bg-background/95 px-4 pb-4 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pb-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

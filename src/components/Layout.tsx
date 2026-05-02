@@ -12,7 +12,10 @@ import logo from "@/assets/CoachVision_Final.png";
 import { MobilePagerContext, type MobilePagerContextValue, type MobilePagerTarget } from "@/components/MobilePagerContext";
 import { MobilePrimaryPager } from "@/components/MobilePrimaryPager";
 import { SearchBar } from "@/components/SearchBar";
-import { getMobileHeaderHideProgress } from "@/components/mobileHeaderMotion";
+import {
+  getMobileHeaderHideProgress,
+  shouldUseMobileHeaderHideAnchor,
+} from "@/components/mobileHeaderMotion";
 import { TEAM_IDENTITY_DESTINATION } from "@/components/teamIdentityNavigation";
 import { useTeam } from "@/contexts/TeamContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -130,7 +133,7 @@ export const Layout = ({ children }: LayoutProps) => {
       }
 
       if (delta > 0) {
-        const searchAnchor = location.pathname === "/"
+        const searchAnchor = shouldUseMobileHeaderHideAnchor(location.pathname)
           ? document.querySelector<HTMLElement>("[data-mobile-header-hide-anchor]")
           : null;
 
