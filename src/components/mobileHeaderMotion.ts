@@ -5,6 +5,9 @@ type MobileHeaderHideProgressInput = {
 
 const clampProgress = (value: number) => Math.min(1, Math.max(0, value));
 
+export const shouldUseMobileHeaderHideAnchor = (pathname: string) =>
+  pathname === "/" || pathname === "/drills";
+
 export const getMobileHeaderHideProgress = ({
   headerHeight,
   searchCardTop,
