@@ -995,7 +995,7 @@ const AutoPlan = () => {
   return (
     <div className="space-y-5 sm:space-y-8">
      {/* Search-Driven Planning */}
-      <Card data-mobile-header-hide-anchor className="rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+      <Card data-mobile-header-hide-anchor="autoplan" className="rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
         <CardContent className="p-3 sm:py-4">
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
@@ -1006,7 +1006,7 @@ const AutoPlan = () => {
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                className="h-12 bg-background pl-10 pr-10 text-base transition duration-200 ease-out hover:border-primary/40 hover:shadow-md hover:shadow-primary/20 focus-visible:scale-[1.01] sm:pr-4 sm:hover:scale-[1.01]"
+                className="h-12 bg-background pl-10 pr-10 text-base transition duration-200 ease-out hover:border-primary/40 hover:shadow-md hover:shadow-primary/20 focus-visible:border-primary/40 focus-visible:shadow-md focus-visible:shadow-primary/20 sm:pr-4 sm:hover:scale-[1.01]"
                 />
               {isParsingIntent && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">

@@ -6,7 +6,13 @@ type MobileHeaderHideProgressInput = {
 const clampProgress = (value: number) => Math.min(1, Math.max(0, value));
 
 export const shouldUseMobileHeaderHideAnchor = (pathname: string) =>
-  pathname === "/" || pathname === "/drills";
+  getMobileHeaderHideAnchorSelector(pathname) !== null;
+
+export const getMobileHeaderHideAnchorSelector = (pathname: string) => {
+  if (pathname === "/") return '[data-mobile-header-hide-anchor="autoplan"]';
+  if (pathname === "/drills") return '[data-mobile-header-hide-anchor="drills"]';
+  return null;
+};
 
 export const getMobileHeaderHideProgress = ({
   headerHeight,

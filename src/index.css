@@ -104,6 +104,22 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  @supports (overflow: clip) {
+    html,
+    body,
+    #root {
+      overflow-x: clip;
+    }
+  }
+
   body {
     @apply bg-background text-foreground;
     min-height: 100%;
@@ -129,6 +145,12 @@ All colors MUST be HSL.
   textarea,
   [role="button"] {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (max-width: 767px) {
+    :where(input, textarea, select):where(.text-xs, .text-sm) {
+      font-size: 16px;
+    }
   }
 }
 
