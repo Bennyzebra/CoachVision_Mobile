@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
+  getMobileHeaderHideAnchorSelector,
   getMobileHeaderHideProgress,
   shouldUseMobileHeaderHideAnchor,
 } from "./mobileHeaderMotion.ts";
@@ -38,4 +39,16 @@ test("uses the seamless mobile header anchor on AutoPlan and drill library only"
   assert.equal(shouldUseMobileHeaderHideAnchor("/drills"), true);
   assert.equal(shouldUseMobileHeaderHideAnchor("/drill/123"), false);
   assert.equal(shouldUseMobileHeaderHideAnchor("/plan"), false);
+});
+
+test("selects the active page search anchor when pager pages are both mounted", () => {
+  assert.equal(
+    getMobileHeaderHideAnchorSelector("/"),
+    '[data-mobile-header-hide-anchor="autoplan"]'
+  );
+  assert.equal(
+    getMobileHeaderHideAnchorSelector("/drills"),
+    '[data-mobile-header-hide-anchor="drills"]'
+  );
+  assert.equal(getMobileHeaderHideAnchorSelector("/drill/123"), null);
 });

@@ -13,8 +13,8 @@ import { MobilePagerContext, type MobilePagerContextValue, type MobilePagerTarge
 import { MobilePrimaryPager } from "@/components/MobilePrimaryPager";
 import { SearchBar } from "@/components/SearchBar";
 import {
+  getMobileHeaderHideAnchorSelector,
   getMobileHeaderHideProgress,
-  shouldUseMobileHeaderHideAnchor,
 } from "@/components/mobileHeaderMotion";
 import { TEAM_IDENTITY_DESTINATION } from "@/components/teamIdentityNavigation";
 import { useTeam } from "@/contexts/TeamContext";
@@ -133,8 +133,9 @@ export const Layout = ({ children }: LayoutProps) => {
       }
 
       if (delta > 0) {
-        const searchAnchor = shouldUseMobileHeaderHideAnchor(location.pathname)
-          ? document.querySelector<HTMLElement>("[data-mobile-header-hide-anchor]")
+        const searchAnchorSelector = getMobileHeaderHideAnchorSelector(location.pathname);
+        const searchAnchor = searchAnchorSelector
+          ? document.querySelector<HTMLElement>(searchAnchorSelector)
           : null;
 
         if (searchAnchor && headerHeight > 0) {
