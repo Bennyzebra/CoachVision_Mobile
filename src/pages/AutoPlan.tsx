@@ -55,7 +55,6 @@ import {
   summarizeIntentForPlanning,
   type PlanningIntent,
 } from "@/services/geminiService";
-import { createGeneratedPlanFromFallback } from "./autoPlanFallback";
 import { GeneratedPlan } from "@/components/GeneratedPlan";
 import { getTeamDrillOutcomes, savePractice } from "@/services/practiceService";
 import { useAuth } from "@/contexts/AuthContext";
@@ -743,14 +742,62 @@ const AutoPlan = () => {
 
         const fallbackPlan = buildPracticePlan(sessionContext, availableDrills);
         if (fallbackPlan.length > 0) {
-          const generatedFallbackPlan = createGeneratedPlanFromFallback(fallbackPlan, availableDrills);
+          const drillLookup = new Map(availableDrills.map(drill => [drill.id, drill]));
+          const warmup: Drill[] = [];
+          const main_segment: Drill[] = [];
+          const cool_down: Drill[] = [];
 
-          if (generatedFallbackPlan) {
-            setGeneratedPlan(generatedFallbackPlan);
-            toast.warning("AI plan unavailable. Generated a local plan instead.");
-            return;
-          }
+          fallbackPlan.forEach(item => {
+            const drill = drillLookup.get(item.drillId);
+            if (!drill) return;
+            const drillWithDuration = { ...drill, duration: item.duration, explainWhy: item.explainWhy };
+            if (item.segment === "warmup") warmup.push(drillWithDuration);
+            else if (item.segment === "cooldown") cool_down.push(drillWithDuration);
+            else main_segment.push(drillWithDuration);
+          });
 
+          const explainWhyMap = await generateDrillExplainWhys({
+            coachRequirements,
+            teamProfileSummary,
+            drills: [
+              ...warmup.map((drill) => ({
+                id: drill.id,
+                name: drill.name,
+                focus: drill.focus,
+                duration: drill.duration,
+                segment: "warmup",
+                tags: drill.tags,
+              })),
+              ...main_segment.map((drill) => ({
+                id: drill.id,
+                name: drill.name,
+                focus: drill.focus,
+                duration: drill.duration,
+                segment: "main",
+                tags: drill.tags,
+              })),
+              ...cool_down.map((drill) => ({
+                id: drill.id,
+                name: drill.name,
+                focus: drill.focus,
+                duration: drill.duration,
+                segment: "cooldown",
+                tags: drill.tags,
+              })),
+            ],
+          });
+
+          const applyExplainWhy = (drills: Drill[]) =>
+            drills.map((drill) => ({ ...drill, explainWhy: explainWhyMap[drill.id] }));
+          
+          setGeneratedPlan({
+            warmup: applyExplainWhy(warmup),
+            main_segment: applyExplainWhy(main_segment),
+            cool_down: applyExplainWhy(cool_down),
+            coach_notes: "Generated locally based on your practice defaults.",
+          });
+
+          toast.warning("AI plan failed. Generated a local plan instead.");
           return;
         }
       }      
