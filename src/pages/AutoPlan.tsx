@@ -1006,7 +1006,7 @@ const AutoPlan = () => {
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                className="h-12 bg-background pl-10 pr-10 text-base transition duration-200 ease-out hover:border-primary/40 hover:shadow-md hover:shadow-primary/20 sm:pr-4 sm:hover:scale-[1.01]"
+                className="h-12 bg-background pl-10 pr-10 text-base transition duration-200 ease-out hover:border-primary/40 hover:shadow-md hover:shadow-primary/20 focus-visible:scale-[1.01] sm:pr-4 sm:hover:scale-[1.01]"
                 />
               {isParsingIntent && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
