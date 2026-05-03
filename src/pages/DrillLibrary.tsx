@@ -43,7 +43,7 @@ const DrillLibrary = () => {
           />
         </div>
 
-        <div className="flex touch-scroll items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex touch-scroll items-center gap-2 overflow-x-auto scrollbar-none pb-1">
           <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
           {focuses.map((focus) => (
             <Button

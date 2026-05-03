@@ -169,6 +169,15 @@ All colors MUST be HSL.
     -webkit-overflow-scrolling: touch;
   }
 
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   .tap-target {
     min-height: 44px;
     min-width: 44px;

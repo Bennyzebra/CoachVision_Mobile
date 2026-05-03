@@ -56,7 +56,7 @@ export interface PracticeFeedback {
   summary?: string;
 }
 
-export type IntensityPreference = "light" | "balanced" | "high";
+export type IntensityPreference = "recovery" | "light" | "balanced" | "intense" | "high";
 
 export interface NotificationPreferences {
   practiceReminders: boolean;
