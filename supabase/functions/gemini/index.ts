@@ -18,6 +18,7 @@ type CoachRequirements = {
   focus: string;
   duration: number;
   goals?: string;
+  intensityPreference?: "recovery" | "light" | "balanced" | "intense" | "high";
   preferredDrillIds?: string[];
   coachId?: string;
   teamId?: string;
@@ -70,6 +71,30 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const normalizeIntensityPreference = (value?: CoachRequirements["intensityPreference"]) => {
+  if (value === "high" || value === "intense") return "intense";
+  if (value === "recovery" || value === "light" || value === "balanced") return value;
+  return "balanced";
+};
+
+const intensityGuidance = (value?: CoachRequirements["intensityPreference"]) => {
+  const preference = normalizeIntensityPreference(value);
+
+  if (preference === "recovery") {
+    return "Practice Intensity: recovery. Prefer drill intensity 1-2 and avoid conditioning-heavy or high-fatigue drills.";
+  }
+
+  if (preference === "light") {
+    return "Practice Intensity: light. Prefer drill intensity 2-3 while keeping the session active and teachable.";
+  }
+
+  if (preference === "intense") {
+    return "Practice Intensity: intense. Prefer drill intensity 4-5 where the focus, time, and player constraints allow.";
+  }
+
+  return "Practice Intensity: balanced. Preserve a natural progression from lighter early work to stronger main-segment intensity.";
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -317,6 +342,7 @@ CONTEXT:
 - Primary Focus: ${coachRequirements.focus}
 - Total Duration: ${coachRequirements.duration} minutes
 - Goals: ${coachRequirements.goals || "General skill development"}
+- ${intensityGuidance(coachRequirements.intensityPreference)}
 
 AVAILABLE DRILLS:
 ${drillListString}

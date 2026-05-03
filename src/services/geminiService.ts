@@ -1,5 +1,6 @@
 import { supabase } from "../integrations/supabase/client";
 import type { TeamProfileSummary } from "@/lib/planning/teamProfile";
+import type { IntensityPreference } from "@/types";
 import { createGeminiFunctionCaller } from "./geminiFunctionClient";
 import type { GeminiAction } from "./geminiFunctionClient";
 
@@ -27,6 +28,7 @@ export interface CoachRequirements {
   focus: string;
   duration: number;
   goals?: string;
+  intensityPreference?: IntensityPreference;
   preferredDrillIds?: string[];
   coachId?: string;
   teamId?: string;

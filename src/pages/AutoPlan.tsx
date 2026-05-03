@@ -10,14 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
   Sparkles,
   Users,
   AlertTriangle,
@@ -32,7 +24,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTeam } from "@/contexts/TeamContext";
-import { DrillFeedbackRating, IntensityPreference, Drill } from "@/types";
+import { DrillFeedbackRating, Drill } from "@/types";
 import { demoDrills } from "@/lib/demoData";
 import {
   getPreloadedPlayers,
@@ -49,6 +41,11 @@ import {
   buildTeamProfile,
   type TeamProfileSummary,
 } from "@/lib/planning/teamProfile";
+import {
+  intensityPreferenceOptions,
+  normalizeIntensityPreference,
+  type NormalizedIntensityPreference,
+} from "@/lib/planning/intensityPreference";
 import {
   generateDrillExplainWhys,
   generatePracticePlan,
@@ -91,6 +88,12 @@ const focusOptions = [
 ] as const;
 
 type FocusOption = (typeof focusOptions)[number]["id"];
+
+const intensityOptions: Array<{ id: NormalizedIntensityPreference; label: string }> =
+  intensityPreferenceOptions.map((id) => ({
+    id,
+    label: id,
+  }));
 
 const focusKeywordMap: Record<string, FocusOption> = {
   offense: "offense",
@@ -149,8 +152,8 @@ const AutoPlan = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [practiceTitle, setPracticeTitle] = useState("");
-  const [practiceTitleDraft, setPracticeTitleDraft] = useState("");
-  const [isTitleSheetOpen, setIsTitleSheetOpen] = useState(false);  
+  const [practiceTitleEditValue, setPracticeTitleEditValue] = useState("");
+  const [isEditingPracticeTitle, setIsEditingPracticeTitle] = useState(false);
   const [generatedPlan, setGeneratedPlan] = useState<{
     warmup: Drill[];
     main_segment: Drill[];
@@ -171,7 +174,7 @@ const AutoPlan = () => {
       defaultPracticeLength:
         Number(state.profile.defaultPracticeLength ?? state.profile.sessionTarget ?? 60) || 60,
       defaultWarmupLength: Number(state.profile.defaultWarmupLength ?? 15) || 15,
-      intensityPreference: (state.profile.intensityPreference || "balanced") as IntensityPreference,
+      intensityPreference: normalizeIntensityPreference(state.profile.intensityPreference),
       focusDistribution: normalizeFocusDistribution({
         offense: Number(state.profile.focusDistribution?.offense ?? 40) || 40,
         defense: Number(state.profile.focusDistribution?.defense ?? 40) || 40,
@@ -194,6 +197,9 @@ const AutoPlan = () => {
   const [practiceDefaults, setPracticeDefaults] = useState(normalizedDefaults);
 
  const [lastProcessedQuery, setLastProcessedQuery] = useState<string | null>(null);
+  const practiceTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const skipPracticeTitleBlurCommitRef = useRef(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -215,7 +221,6 @@ const AutoPlan = () => {
     const storedTitle = window.sessionStorage.getItem(GENERATED_PLAN_TITLE_STORAGE_KEY);
   if (storedTitle) {
       setPracticeTitle(storedTitle);
-      setPracticeTitleDraft(storedTitle);
     }
   }, []);
     
@@ -255,6 +260,13 @@ const AutoPlan = () => {
       setDurationDraft(String(duration));
     }
   }, [duration, isEditingDuration]);
+
+  useEffect(() => {
+    if (!isEditingPracticeTitle) return;
+
+    practiceTitleInputRef.current?.focus();
+    practiceTitleInputRef.current?.select();
+  }, [isEditingPracticeTitle]);
   
   useEffect(() => {
     const query = searchParams.get("query");
@@ -506,6 +518,40 @@ const AutoPlan = () => {
     }
   };
 
+  const startPracticeTitleEdit = () => {
+    skipPracticeTitleBlurCommitRef.current = false;
+    setPracticeTitleEditValue(practiceTitle);
+    setIsEditingPracticeTitle(true);
+  };
+
+  const commitPracticeTitle = () => {
+    if (skipPracticeTitleBlurCommitRef.current) {
+      skipPracticeTitleBlurCommitRef.current = false;
+      return;
+    }
+
+    setPracticeTitle(practiceTitleEditValue.trim());
+    setIsEditingPracticeTitle(false);
+  };
+
+  const cancelPracticeTitleEdit = () => {
+    skipPracticeTitleBlurCommitRef.current = true;
+    setPracticeTitleEditValue(practiceTitle);
+    setIsEditingPracticeTitle(false);
+  };
+
+  const handlePracticeTitleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitPracticeTitle();
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelPracticeTitleEdit();
+    }
+  };
+
   // Load players from current team
   useEffect(() => {
     const loadPlayers = async () => {
@@ -656,6 +702,7 @@ const AutoPlan = () => {
         goals,
         coachId: user?.id,
         teamId: currentTeam?.id,        
+        intensityPreference: practiceDefaults.intensityPreference,
       };
 
       const result = await generatePracticePlan(coachRequirements, availableDrills);
@@ -735,6 +782,7 @@ const AutoPlan = () => {
           teamLevel: stats.majorityLevel || "intermediate",
           duration,
           focusDistribution: practiceDefaults.focusDistribution,
+          intensityPreference: practiceDefaults.intensityPreference,
           teamProfile,         
           teamDrillOutcomes,          
           lastUsedDrillIds: state.plan.map(item => item.drillId),
@@ -903,61 +951,33 @@ const AutoPlan = () => {
     return (
       <div className="space-y-5 sm:space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <Sheet
-              open={isTitleSheetOpen}
-              onOpenChange={(open) => {
-                setIsTitleSheetOpen(open);
-                if (open) {
-                  setPracticeTitleDraft(practiceTitle);
-                }
-              }}
-            >
-              <SheetTrigger asChild>
-                <Button variant="outline" className="mb-3 h-11 w-full gap-2 sm:w-auto">
-                  <Pencil className="h-4 w-4" />
-                  {practiceTitle.trim() ? "Edit Practice Name" : "Name Practice"}
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="w-full sm:max-w-md">
-                <SheetHeader>
-                  <SheetTitle>{practiceTitle.trim() ? "Edit Practice Name" : "Name Your Practice"}</SheetTitle>
-                  <SheetDescription>
-                    Add a title now and update it any time before saving.
-                  </SheetDescription>
-                </SheetHeader>
-
-                <div className="mt-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="practiceTitle">Practice title</Label>
-                    <Input
-                      id="practiceTitle"
-                      placeholder="e.g. Ball Movement + Transition Defense"
-                      value={practiceTitleDraft}
-                      onChange={(event) => setPracticeTitleDraft(event.target.value)}
-                    />
-                  </div>
-
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <Button variant="outline" onClick={() => setIsTitleSheetOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setPracticeTitle(practiceTitleDraft.trim());
-                        setIsTitleSheetOpen(false);
-                      }}
-                    >
-                      Save Title
-                    </Button>
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-            
+          <div className="min-w-0 flex-1">
             <h1 className="mb-2 flex items-center gap-2 text-2xl font-bold leading-tight sm:text-3xl">
               <Sparkles className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
-              {practiceTitle.trim() || "Your AI-Generated Practice Plan"}
+              {isEditingPracticeTitle ? (
+                <Input
+                  ref={practiceTitleInputRef}
+                  value={practiceTitleEditValue}
+                  onBlur={commitPracticeTitle}
+                  onChange={(event) => setPracticeTitleEditValue(event.target.value)}
+                  onKeyDown={handlePracticeTitleInputKeyDown}
+                  placeholder="Name practice"
+                  enterKeyHint="done"
+                  aria-label="Practice name"
+                  className="h-11 min-w-0 flex-1 border-0 bg-transparent px-1 py-0 text-2xl font-bold leading-tight shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-3xl"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={startPracticeTitleEdit}
+                  className="min-h-11 min-w-0 rounded-md px-1 text-left text-2xl font-bold leading-tight transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-3xl"
+                  aria-label="Edit practice name"
+                >
+                  <span className={practiceTitle.trim() ? "block truncate" : "block truncate text-muted-foreground"}>
+                    {practiceTitle.trim() || "Name practice"}
+                  </span>
+                </button>
+              )}
             </h1>
             <p className="text-muted-foreground">
               Review your personalized practice plan
@@ -969,8 +989,8 @@ const AutoPlan = () => {
             onClick={() => {
               setGeneratedPlan(null);
               setPracticeTitle("");
-              setPracticeTitleDraft("");
-              setIsTitleSheetOpen(false);
+              setPracticeTitleEditValue("");
+              setIsEditingPracticeTitle(false);
               if (typeof window !== "undefined") {
                 window.sessionStorage.removeItem(GENERATED_PLAN_TITLE_STORAGE_KEY);
               }              
@@ -1044,6 +1064,38 @@ const AutoPlan = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 p-3 sm:space-y-7 sm:p-5">
+          <div className="space-y-3">
+            <Label className="text-base font-semibold">Practice Intensity</Label>
+            <div className="-mx-1 overflow-x-auto scrollbar-none px-1 pb-1">
+              <div className="flex min-w-max gap-2 sm:min-w-0">
+                {intensityOptions.map((option) => {
+                  const isSelected = practiceDefaults.intensityPreference === option.id;
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() =>
+                        setPracticeDefaults((prev) => ({
+                          ...prev,
+                          intensityPreference: option.id,
+                        }))
+                      }
+                      className={`min-h-11 min-w-[7.25rem] flex-1 rounded-full border px-4 py-2 text-sm font-semibold capitalize transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                        isSelected
+                          ? "border-2 border-primary bg-primary/10 text-primary shadow-sm"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* Step 1: Duration */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">

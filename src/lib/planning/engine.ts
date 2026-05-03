@@ -2,6 +2,7 @@
 import type { Drill, FocusDistribution, PlanItem, Player } from "@/types";
 import type { TeamProfile } from "@/lib/planning/teamProfile";
 import { humanizeTag, normalizeTag as normalizeProfileTag } from "@/lib/planning/teamProfile";
+import { getExpectedIntensityForPreference } from "@/lib/planning/intensityPreference";
 
 /** Extend your types if needed (all optional → backward compatible) */
 export type Position = "G" | "F" | "C";
@@ -15,6 +16,7 @@ export interface SessionContext {
   duration: number; // minutes
   lastUsedDrillIds?: string[]; // for cooldown
   focusDistribution?: FocusDistribution;  
+  intensityPreference?: TeamProfile["coachPreferences"]["intensityPreference"];
   teamProfile?: TeamProfile;  
   teamDrillOutcomes?: Record<string, TeamDrillOutcome>;
   feedback?: {
@@ -350,14 +352,16 @@ function levelFit(session: SessionContext, stats: ReturnType<typeof computeStats
   if (team === "advanced" && dl === "beginner") return 0.5; // acceptable as fundamentals
   return 0.7;
 }
-function intensityFit(remaining: number, d: DrillMeta, usedIntensities: number[]): number {
+function intensityFit(session: SessionContext, remaining: number, d: DrillMeta, usedIntensities: number[]): number {
   const intensity = d.intensity ?? 3;
   const avgUsed = usedIntensities.length
     ? usedIntensities.reduce((a, b) => a + b, 0) / usedIntensities.length
     : 3;
 
-  // early: bias lighter; late: allow higher intensity
-  const expected = remaining >= 30 ? 2.5 : remaining <= 12 ? 4 : 3;
+  const expected = getExpectedIntensityForPreference(
+    session.intensityPreference ?? session.teamProfile?.coachPreferences.intensityPreference,
+    remaining
+  );
   const spreadPenalty = clamp(Math.abs(intensity - avgUsed) / 4, 0, 1);
   const phasePenalty = clamp(Math.abs(intensity - expected) / 4, 0, 1);
   return clamp(1 - (spreadPenalty * 0.6 + phasePenalty * 0.4), 0, 1);
@@ -422,7 +426,7 @@ export function scoreDrillForSession(
   const f_focus = focusMatch(session, d);
   const f_goals = textGoalMatch(session.goalsText, d);
   const f_level = levelFit(session, stats, d);
-  const f_intensity = intensityFit(remaining, d, usedIntensities);
+  const f_intensity = intensityFit(session, remaining, d, usedIntensities);
   const f_tags = tagsGoalMatch(session.goalsText, d);
   const f_teamProfile = teamProfileFit(session.teamProfile, d);  
   const f_court = courtFit(d, stats.total);
