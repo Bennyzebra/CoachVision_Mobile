@@ -112,6 +112,7 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
   const mobilePager = useMobilePager();
   const { action: mobileBottomAction } = useMobileBottomAction();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const containerResizeObserverRef = useRef<ResizeObserver | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [mobilePagerDragOffset, setMobilePagerDragOffset] = useState<number | null>(null);
   const [generatedPlanNavExpanded, setGeneratedPlanNavExpanded] = useState(false);
@@ -200,17 +201,41 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
   const generatedPlanFullLabel = mobileBottomAction?.label ?? "Save and Continue to Practice";
   const generatedPlanCompactLabel = mobileBottomAction?.compactLabel ?? "Continue to practice";
 
-  useEffect(() => {
-    const element = containerRef.current;
-    if (!element) return;
+  const setContainerNode = useCallback((node: HTMLDivElement | null) => {
+    if (containerRef.current === node) return;
 
-    const updateWidth = () => setContainerWidth(element.clientWidth);
+    containerResizeObserverRef.current?.disconnect();
+    containerResizeObserverRef.current = null;
+    containerRef.current = node;
+
+    if (!node) {
+      setContainerWidth(0);
+      return;
+    }
+
+    const updateWidth = () => setContainerWidth(node.clientWidth);
     updateWidth();
 
     const observer = new ResizeObserver(updateWidth);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [generatedPlanNavExpanded, isGeneratedPlanActionActive]);
+    observer.observe(node);
+    containerResizeObserverRef.current = observer;
+  }, []);
+
+  const resetBarInteractionState = useCallback(() => {
+    touchStartXRef.current = null;
+    touchDeltaXRef.current = 0;
+    suppressClickRef.current = false;
+    hasPointerCaptureRef.current = false;
+    mobilePagerStartOffsetRef.current = 0;
+    setMobilePagerDragOffset(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      containerResizeObserverRef.current?.disconnect();
+      containerResizeObserverRef.current = null;
+    };
+  }, []);
 
   const collapseGeneratedPlanNav = useCallback(() => {
     if (!isGeneratedPlanActionActive) return;
@@ -230,6 +255,10 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
       window.removeEventListener("touchmove", collapseGeneratedPlanNav);
     };
   }, [collapseGeneratedPlanNav, isGeneratedPlanActionActive]);
+
+  useEffect(() => {
+    resetBarInteractionState();
+  }, [isMobilePagerEnabled, location.pathname, resetBarInteractionState]);
 
   const navigateWithMotion = (path: string, direction: RouteMotionDirection) => {
     emitRouteMotion(direction);
@@ -277,7 +306,7 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
       touchStartXRef.current = null;
       touchDeltaXRef.current = 0;
       mobilePager?.endDrag();
-      setMobilePagerDragOffset(null);
+      resetBarInteractionState();
       window.setTimeout(() => {
         suppressClickRef.current = false;
         hasPointerCaptureRef.current = false;
@@ -326,7 +355,10 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
 
     return (
       <div
-        className="flex h-12 shrink-0 items-center overflow-hidden rounded-full bg-muted px-2"
+        className={cn(
+          "flex h-12 shrink-0 items-center overflow-hidden rounded-full bg-muted px-2 transition-opacity",
+          isActiveTarget ? "opacity-100" : "pointer-events-none opacity-0"
+        )}
         style={{ width: containerWidth || undefined }}
         aria-hidden={!isActiveTarget}
       >
@@ -377,7 +409,7 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
       >
         {generatedPlanNavExpanded ? (
           <div
-            ref={containerRef}
+            ref={setContainerNode}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerEnd}
@@ -453,23 +485,27 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
     return (
       <div className="flex w-full flex-col items-center">
         <div
-          ref={containerRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}
           onPointerCancel={handlePointerEnd}
-          className="relative h-12 w-[19rem] max-w-[calc(100vw-2rem)] touch-pan-y overflow-hidden"
+          className="relative h-12 w-screen touch-pan-y overflow-hidden"
         >
           <div
-            className="flex h-full will-change-transform"
-            style={{
-              gap: `${mobilePagerGap}px`,
-              transform: `translate3d(${mobilePagerTrackOffset}px, 0, 0)`,
-              transition: mobilePagerTransition,
-            }}
+            ref={setContainerNode}
+            className="absolute left-1/2 top-0 h-12 w-[19rem] max-w-[calc(100vw-2rem)] -translate-x-1/2"
           >
-            {renderPagerPill("autoplan")}
-            {renderPagerPill("library")}
+            <div
+              className="flex h-full will-change-transform"
+              style={{
+                gap: `${mobilePagerGap}px`,
+                transform: `translate3d(${mobilePagerTrackOffset}px, 0, 0)`,
+                transition: mobilePagerTransition,
+              }}
+            >
+              {renderPagerPill("autoplan")}
+              {renderPagerPill("library")}
+            </div>
           </div>
         </div>
       </div>
@@ -480,7 +516,7 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
     <div className="flex flex-col items-center w-full">
       {/* Search Bar Container - Spotify-style pill shape with icons inside */}
       <div
-        ref={containerRef}
+        ref={setContainerNode}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
