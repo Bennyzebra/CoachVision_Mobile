@@ -106,7 +106,7 @@ export const GeneratedPlan = ({
   onViewDrill,
   onSaveAndContinue,
   addedDrillIds = [],
-  isSaving = false
+  isSaving = false,
 }: GeneratedPlanProps) => {
   const calculateTotalTime = (drills: Drill[]) => {
     return drills.reduce((total, drill) => total + drill.duration, 0);
@@ -205,15 +205,16 @@ export const GeneratedPlan = ({
       </Card>
 
       {plan.warmup.length > 0 && renderSection("Warm-up", plan.warmup, "warmup")}
-      
+
       {plan.main_segment.length > 0 &&
         renderSection("Main Segment", plan.main_segment, "main_segment")}
-  
+
       {plan.cool_down.length > 0 && renderSection("Cool Down", plan.cool_down, "cool_down")}
-      
+
       {onSaveAndContinue && (
-        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 border-t bg-background/95 px-4 pb-3 pt-3 backdrop-blur md:bottom-0 md:mx-0 md:px-0 md:pb-6 md:pt-4">
+        <div className="hidden md:block sticky bottom-0 z-30 -mx-4 border-t bg-background/95 px-4 pb-3 pt-3 backdrop-blur md:mx-0 md:px-0 md:pb-6 md:pt-4">
           <Button
+            type="button"
             onClick={onSaveAndContinue}
             disabled={isSaving}
             size="lg"

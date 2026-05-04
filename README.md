@@ -2,6 +2,26 @@
 
 [![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/github-okwnwvy3-6m4dksvq)
 
+## Workspace Path Guard
+
+Run app commands from the repo root of this checkout.
+
+```sh
+pwd
+```
+
+`npm run dev`, `npm run build`, and `npm run preview` now run a workspace check first and fail fast if the command is launched from a different folder.
+
+Quick verify:
+
+```sh
+cd /path/to/CoachVision_Mobile
+pwd
+npm run build
+```
+
+If you need to override the expected workspace path, set `COACHVISION_WORKSPACE`.
+
 ## Environment Setup
 
 Local Vite `.env` files should only include browser-safe Supabase client values:

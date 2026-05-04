@@ -1,0 +1,215 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 210 100% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 100% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 100% 10%;
+
+    --primary: 210 100% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 25 100% 63%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 210 15% 45%;
+
+    --accent: 25 100% 63%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 30% 88%;
+    --input: 210 30% 88%;
+    --ring: 210 100% 40%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 210 100% 98%;
+    --sidebar-foreground: 210 100% 10%;
+    --sidebar-primary: 210 100% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 210 100% 10%;
+    --sidebar-border: 210 30% 88%;
+    --sidebar-ring: 210 100% 40%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(210 100% 40%), hsl(210 100% 50%));
+    --gradient-accent: linear-gradient(135deg, hsl(25 100% 63%), hsl(25 100% 73%));
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --app-safe-area-top: env(safe-area-inset-top, 0px);
+    --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --mobile-header-content-height: 3.5rem;
+    --mobile-header-top-padding: calc(var(--app-safe-area-top) + 0.125rem);
+    --mobile-header-content-lift: 0.75rem;
+    --mobile-header-height: calc(var(--mobile-header-top-padding) + var(--mobile-header-content-height));
+    --mobile-content-top-offset: calc(var(--mobile-header-height) + 2rem);
+  }
+
+  .dark {
+    --background: 210 30% 8%;
+    --foreground: 0 0% 98%;
+
+    --card: 210 30% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 210 30% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 210 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 25 100% 63%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 30% 18%;
+    --muted-foreground: 210 15% 65%;
+
+    --accent: 25 100% 63%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 30% 18%;
+    --input: 210 30% 18%;
+    --ring: 210 100% 50%;
+
+    --sidebar-background: 210 30% 10%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 210 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 30% 18%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 210 30% 18%;
+    --sidebar-ring: 210 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  @supports (overflow: clip) {
+    html,
+    body,
+    #root {
+      overflow-x: clip;
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100%;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  html {
+    min-height: 100%;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  #root {
+    min-height: 100%;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (max-width: 767px) {
+    :where(input, textarea, select):where(.text-xs, .text-sm) {
+      font-size: 16px;
+    }
+  }
+}
+
+@layer utilities {
+  .mobile-safe-top {
+    padding-top: var(--app-safe-area-top);
+  }
+
+  .mobile-safe-bottom {
+    padding-bottom: var(--app-safe-area-bottom);
+  }
+
+  .touch-scroll {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .mobile-screen-slide-right {
+    animation: mobile-screen-slide-right 300ms ease-out both;
+  }
+
+  .mobile-screen-slide-left {
+    animation: mobile-screen-slide-left 300ms ease-out both;
+  }
+}
+
+@keyframes mobile-screen-slide-right {
+  from {
+    opacity: 0.9;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes mobile-screen-slide-left {
+  from {
+    opacity: 0.9;
+    transform: translateX(-32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

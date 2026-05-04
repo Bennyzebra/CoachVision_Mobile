@@ -3,8 +3,6 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const autoPlanSource = readFileSync(new URL("./AutoPlan.tsx", import.meta.url), "utf8");
-const practiceTitleInputClass =
-  autoPlanSource.match(/aria-label="Practice name"[\s\S]*?className="([^"]+)"/)?.[1] ?? "";
 
 test("AutoPlan uses inline generated practice naming instead of the title sheet", () => {
   assert.doesNotMatch(autoPlanSource, /SheetTrigger/);
@@ -27,18 +25,4 @@ test("AutoPlan keeps generated practice title persistence and save wiring", () =
   assert.match(autoPlanSource, /window\.sessionStorage\.setItem\(GENERATED_PLAN_TITLE_STORAGE_KEY,\s*practiceTitle\.trim\(\)\)/);
   assert.match(autoPlanSource, /window\.sessionStorage\.removeItem\(GENERATED_PLAN_TITLE_STORAGE_KEY\)/);
   assert.match(autoPlanSource, /savePractice\([\s\S]*practiceTitle[\s\S]*\)/);
-});
-
-test("AutoPlan uses CoachVision mark and a taller inline title input", () => {
-  assert.match(autoPlanSource, /src="\/CoachVision_Favicon\.png"/);
-  assert.match(autoPlanSource, /alt=""/);
-  assert.doesNotMatch(autoPlanSource, /<Sparkles className="h-7 w-7 shrink-0 text-primary/);
-  assert.match(autoPlanSource, /min-h-\[3\.25rem\]/);
-  assert.match(autoPlanSource, /leading-\[1\.2\]/);
-});
-
-test("AutoPlan does not draw a focus border around the inline title input", () => {
-  assert.doesNotMatch(practiceTitleInputClass, /focus-visible:ring-2/);
-  assert.doesNotMatch(practiceTitleInputClass, /focus-visible:ring-ring/);
-  assert.match(practiceTitleInputClass, /focus-visible:ring-0/);
 });

@@ -9,6 +9,10 @@ import {
   ClipboardList,
 } from "lucide-react";
 import logo from "@/assets/CoachVision_Final.png";
+import {
+  MobileBottomActionContext,
+  type MobileBottomActionRegistration,
+} from "@/components/MobileBottomActionContext";
 import { MobilePagerContext, type MobilePagerContextValue, type MobilePagerTarget } from "@/components/MobilePagerContext";
 import { MobilePrimaryPager } from "@/components/MobilePrimaryPager";
 import { SearchBar } from "@/components/SearchBar";
@@ -72,6 +76,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const isPrimaryPagerRoute = location.pathname === "/" || location.pathname === "/drills";
   const [pagerProgress, setPagerProgress] = useState(routePagerIndex);
   const [isPagerDragging, setIsPagerDragging] = useState(false);
+  const [mobileBottomAction, setMobileBottomAction] =
+    useState<MobileBottomActionRegistration | null>(null);
   const [isThemeSelectOpen, setIsThemeSelectOpen] = useState(false);  
   const [isProfileDropdownHovered, setIsProfileDropdownHovered] = useState(false);  
   const userEmail = profile?.email ?? session?.user?.email ?? "Email not available";
@@ -306,6 +312,24 @@ export const Layout = ({ children }: LayoutProps) => {
       updatePagerDrag,
     ]
   );
+
+  const registerMobileBottomAction = useCallback(
+    (action: MobileBottomActionRegistration | null) => {
+      setMobileBottomAction(action);
+      return () => {
+        setMobileBottomAction((currentAction) => (currentAction === action ? null : currentAction));
+      };
+    },
+    []
+  );
+
+  const mobileBottomActionContext = useMemo(
+    () => ({
+      action: mobileBottomAction,
+      registerMobileBottomAction,
+    }),
+    [mobileBottomAction, registerMobileBottomAction]
+  );
   
   const handleThemeSelectOpenChange = (open: boolean) => {
     if (!open && keepThemeSelectOpenRef.current) {
@@ -420,6 +444,7 @@ export const Layout = ({ children }: LayoutProps) => {
   );
 
   return (
+    <MobileBottomActionContext.Provider value={mobileBottomActionContext}>
     <MobilePagerContext.Provider value={mobilePagerContext}>
     <div className="min-h-screen bg-background">
       <nav className="hidden border-b border-border bg-card md:block">
@@ -575,10 +600,11 @@ export const Layout = ({ children }: LayoutProps) => {
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/45 bg-background/70 pb-[var(--app-safe-area-bottom)] shadow-[0_-10px_28px_rgba(15,23,42,0.10)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/55 md:hidden">
         <div className="flex h-16 items-center justify-center px-4">
-          <SearchBar />
+          <SearchBar placement="mobile-bottom" />
         </div>
       </nav>
     </div>
     </MobilePagerContext.Provider>
+    </MobileBottomActionContext.Provider>
   );
 };
