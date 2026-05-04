@@ -131,7 +131,48 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
     location.pathname.startsWith("/drill") ||
     location.pathname.startsWith("/discover");
 
-  const getStatusLabel = (pathname: string) => getMobileBottomBarState(pathname).label;
+  const getStatusLabel = (pathname: string) => {
+    if (pathname === "/") {
+      return "Practice Plan";
+    }
+    if (pathname.startsWith("/plan")) {
+      return "Practice Plan";
+    }
+    if (pathname.startsWith("/run")) {
+      return "Run Practice";
+    }
+    if (pathname.startsWith("/drill")) {
+      return "Drills";
+    }
+    if (pathname.startsWith("/discover") || pathname.startsWith("/drills")) {
+      return "Discover Drills";
+    }
+    if (pathname.startsWith("/team")) {
+      return "Team & Roster";
+    }
+    if (pathname.startsWith("/settings")) {
+      return "Settings";
+    }
+    if (pathname.startsWith("/practice-tracker")) {
+      return "Practice History";
+    }    
+    if (pathname.startsWith("/submit")) {
+      return "Submit Drill";
+    }
+    if (pathname.startsWith("/feedback")) {
+      return "Feedback";
+    }
+    if (pathname.startsWith("/suggestions")) {
+      return "Suggestions";
+    }
+    if (pathname.startsWith("/onboarding")) {
+      return "Onboarding";
+    }
+    if (pathname.startsWith("/upgrade")) {
+      return "Upgrade";
+    }
+    return "CoachVision";
+  };
 
   const label = getStatusLabel(location.pathname);
   const containerWidthClass =
