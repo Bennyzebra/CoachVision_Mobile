@@ -1048,7 +1048,7 @@ const AutoPlan = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="What should we work on today? e.g., 'prep for full court press' or 'fix turnovers vs press'"
+                placeholder="What should we work on today?"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
@@ -1259,7 +1259,7 @@ const AutoPlan = () => {
             <div className="space-y-2">
               <div className="relative">
                 <Textarea
-                  placeholder="E.g., fix turnovers, prep for Friday opponent, improve press break, increase communication…"
+                  placeholder="Fix turnovers, prep for the game on Friday, strengthen our defense..."
                   value={goals}
                   onChange={handleGoalsChange}
                   rows={3}

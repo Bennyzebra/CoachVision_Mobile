@@ -102,7 +102,7 @@ const UpgradePage = () => {
               ))}
             </ul>
             <Button className="w-full" onClick={() => handleSelectPlan("Premium")}>
-              Choose Premium
+              Choose Plus
             </Button>
           </CardContent>
         </Card>
