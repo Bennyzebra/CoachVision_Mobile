@@ -2,8 +2,9 @@ import { Drill } from "@/types";
 import { DrillCard } from "./DrillCard";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
-import { Clock, GripVertical } from "lucide-react";
+import { Clock, GripVertical, Play } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -103,7 +104,9 @@ export const GeneratedPlan = ({
   onReorder,  
   onAddDrill,
   onViewDrill,
+  onSaveAndContinue,
   addedDrillIds = [],
+  isSaving = false,
 }: GeneratedPlanProps) => {
   const calculateTotalTime = (drills: Drill[]) => {
     return drills.reduce((total, drill) => total + drill.duration, 0);
@@ -207,6 +210,21 @@ export const GeneratedPlan = ({
         renderSection("Main Segment", plan.main_segment, "main_segment")}
 
       {plan.cool_down.length > 0 && renderSection("Cool Down", plan.cool_down, "cool_down")}
+
+      {onSaveAndContinue && (
+        <div className="hidden md:block sticky bottom-0 z-30 -mx-4 border-t bg-background/95 px-4 pb-3 pt-3 backdrop-blur md:mx-0 md:px-0 md:pb-6 md:pt-4">
+          <Button
+            type="button"
+            onClick={onSaveAndContinue}
+            disabled={isSaving}
+            size="lg"
+            className="h-14 w-full gap-3 text-base sm:text-lg"
+          >
+            <Play className="h-5 w-5" />
+            {isSaving ? "Saving..." : "Save and Continue to Practice"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

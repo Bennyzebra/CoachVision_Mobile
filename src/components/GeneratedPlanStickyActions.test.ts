@@ -12,4 +12,9 @@ test("GeneratedPlan leaves mobile save action ownership to the bottom bar", () =
   assert.doesNotMatch(generatedPlanSource, /fixed inset-x-0 bottom-\[calc\(4rem\+var\(--app-safe-area-bottom\)\)\]/);
   assert.match(generatedPlanSource, /onSaveAndContinue\?: \(\) => void;/);
   assert.match(generatedPlanSource, /isSaving\?: boolean;/);
+  assert.match(generatedPlanSource, /onSaveAndContinue,/);
+  assert.match(generatedPlanSource, /isSaving = false/);
+  assert.match(generatedPlanSource, /hidden md:block sticky bottom-0/);
+  assert.match(generatedPlanSource, /Save and Continue to Practice/);
+  assert.match(generatedPlanSource, /Saving\.\.\./);
 });

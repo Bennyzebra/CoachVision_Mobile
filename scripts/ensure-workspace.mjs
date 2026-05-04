@@ -1,24 +1,43 @@
 import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const configuredWorkspace =
-  process.env.COACHVISION_WORKSPACE ||
-  "/Users/bensheegog/Documents/GitHub/CoachVision_Mobile";
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const defaultWorkspace = path.resolve(scriptDir, "..");
 
-async function assertWorkspace() {
+export function resolveConfiguredWorkspace() {
+  return process.env.COACHVISION_WORKSPACE || defaultWorkspace;
+}
+
+export function formatWorkspaceCheckFailure(currentPath, expectedPath) {
+  return [
+    "Workspace check failed.",
+    `Current:  ${currentPath}`,
+    `Expected: ${expectedPath}`,
+    `Run: cd ${expectedPath}`,
+  ].join("\n");
+}
+
+export async function assertWorkspace({
+  cwd = process.cwd(),
+  expectedWorkspace = resolveConfiguredWorkspace(),
+  stderr = console.error,
+  exit = process.exit,
+} = {}) {
   const [currentPath, expectedPath] = await Promise.all([
-    fs.realpath(process.cwd()),
-    fs.realpath(configuredWorkspace),
+    fs.realpath(cwd),
+    fs.realpath(expectedWorkspace),
   ]);
 
   if (currentPath !== expectedPath) {
-    console.error("Workspace check failed.");
-    console.error(`Current:  ${currentPath}`);
-    console.error(`Expected: ${expectedPath}`);
-    console.error(
-      "Run: cd /Users/bensheegog/Documents/GitHub/CoachVision_Mobile"
-    );
-    process.exit(1);
+    stderr(formatWorkspaceCheckFailure(currentPath, expectedPath));
+    exit(1);
+    return false;
   }
+
+  return true;
 }
 
-await assertWorkspace();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await assertWorkspace();
+}
