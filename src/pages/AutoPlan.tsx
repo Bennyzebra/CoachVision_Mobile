@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAppState } from "@/hooks/useAppState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +54,7 @@ import {
   generateDrillExplainWhys,
   generatePracticePlan,
   summarizeIntentForPlanning,
+  type CoachRequirements,
   type PlanningIntent,
 } from "@/services/geminiService";
 import { GeneratedPlan } from "@/components/GeneratedPlan";
@@ -66,6 +68,8 @@ const GENERATED_PLAN_STORAGE_KEY = "coachvision-auto-plan-generated";
 const GENERATED_PLAN_TITLE_STORAGE_KEY = "coachvision-auto-plan-title";
 const MIN_PRACTICE_DURATION = 10;
 const MAX_PRACTICE_DURATION = 240;
+const GENERATION_ESTIMATE_MS = 30000;
+const GENERATION_PROGRESS_MAX_BEFORE_COMPLETE = 92;
 
 const clampPracticeDuration = (value: number) =>
   Math.min(MAX_PRACTICE_DURATION, Math.max(MIN_PRACTICE_DURATION, value));
@@ -142,6 +146,7 @@ const normalizeFocusDistribution = (
 
 const AutoPlan = () => {
   const { state, setPlan, setDrills } = useAppState();
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();  
   const { currentTeam, teams } = useTeam();
@@ -153,6 +158,7 @@ const AutoPlan = () => {
   const [primaryFocus, setPrimaryFocus] = useState<FocusOption | null>("offense");
   const [teamDrillOutcomes, setTeamDrillOutcomes] = useState<Record<string, TeamDrillOutcome>>({});  
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [practiceTitle, setPracticeTitle] = useState("");
   const [practiceTitleEditValue, setPracticeTitleEditValue] = useState("");
@@ -172,6 +178,7 @@ const AutoPlan = () => {
   const [showApplyFromSearch, setShowApplyFromSearch] = useState(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const drillOutcomesUnavailableLoggedRef = useRef(false);
+  const generationRequestIdRef = useRef(0);
   
   const normalizedDefaults = useMemo(
     () => ({
@@ -271,6 +278,26 @@ const AutoPlan = () => {
     practiceTitleInputRef.current?.focus();
     practiceTitleInputRef.current?.select();
   }, [isEditingPracticeTitle]);
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setGenerationProgress(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    setGenerationProgress(8);
+
+    const interval = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const expectedProgress = Math.round((elapsed / GENERATION_ESTIMATE_MS) * 100);
+      setGenerationProgress(
+        Math.min(GENERATION_PROGRESS_MAX_BEFORE_COMPLETE, Math.max(8, expectedProgress))
+      );
+    }, 450);
+
+    return () => window.clearInterval(interval);
+  }, [isGenerating]);
   
   useEffect(() => {
     const query = searchParams.get("query");
@@ -556,6 +583,47 @@ const AutoPlan = () => {
     }
   };
 
+  const stopActiveGeneration = useCallback(() => {
+    generationRequestIdRef.current += 1;
+    setIsGenerating(false);
+    setGenerationProgress(0);
+  }, []);
+
+  const resetPracticeConfiguration = useCallback(() => {
+    const nextDuration = clampPracticeDuration(normalizedDefaults.defaultPracticeLength);
+
+    setGeneratedPlan(null);
+    setPracticeTitle("");
+    setPracticeTitleEditValue("");
+    setIsEditingPracticeTitle(false);
+    setSearchText("");
+    setParsedIntent(null);
+    setShowApplyFromSearch(false);
+    setGoals("");
+    setGoalsManuallyEdited(false);
+    setSelectedFocuses(["offense", "defense"]);
+    setPrimaryFocus("offense");
+    setPracticeDefaults(normalizedDefaults);
+    setDuration(nextDuration);
+    setDurationDraft(String(nextDuration));
+    setIsEditingDuration(false);
+
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(GENERATED_PLAN_TITLE_STORAGE_KEY);
+    }
+  }, [normalizedDefaults]);
+
+  const handleCancelGeneration = useCallback(() => {
+    stopActiveGeneration();
+    resetPracticeConfiguration();
+    navigate("/", { replace: true });
+  }, [navigate, resetPracticeConfiguration, stopActiveGeneration]);
+
+  const handleReviseGeneration = useCallback(() => {
+    stopActiveGeneration();
+    navigate("/", { replace: true });
+  }, [navigate, stopActiveGeneration]);
+
   // Load players from current team
   useEffect(() => {
     const loadPlayers = async () => {
@@ -675,9 +743,15 @@ const AutoPlan = () => {
       }
     }
 
+    const generationRequestId = generationRequestIdRef.current + 1;
+    generationRequestIdRef.current = generationRequestId;
+    const isActiveGeneration = () => generationRequestIdRef.current === generationRequestId;
+
     setIsGenerating(true);
+    setGenerationProgress(8);
 
     let availableDrills: Drill[] = [];
+    let coachRequirements: CoachRequirements | null = null;
     
     try {
       let drillsQuery = supabase
@@ -699,7 +773,7 @@ const AutoPlan = () => {
       const ageGroup = stats.majorityLevel || state.profile.experience || "intermediate";
       const focus = primaryFocus || "offense";
 
-      const coachRequirements = {
+      coachRequirements = {
         ageGroup,
         focus,
         duration,
@@ -710,6 +784,7 @@ const AutoPlan = () => {
       };
 
       const result = await generatePracticePlan(coachRequirements, availableDrills);
+      if (!isActiveGeneration()) return;
 
       const teamProfileSummary = currentTeam?.team_profile_summary as TeamProfileSummary | null | undefined;
       const explainWhyMap = await generateDrillExplainWhys({
@@ -751,6 +826,7 @@ const AutoPlan = () => {
           }),
         ],
       });
+      if (!isActiveGeneration()) return;
 
       const mapDrillWithExplainWhy = (drill: Record<string, unknown>) => {
         const mapped = mapDrill(drill);
@@ -765,10 +841,12 @@ const AutoPlan = () => {
         coach_notes: result.coach_notes,
       });
 
+      setGenerationProgress(100);
       toast.success("Practice plan generated successfully!");
     } catch (error) {
+      if (!isActiveGeneration()) return;
       console.error("Error generating plan:", error);
-      if (availableDrills.length > 0) {
+      if (availableDrills.length > 0 && coachRequirements) {
         const teamProfileSummary = currentTeam?.team_profile_summary as TeamProfileSummary | null | undefined;
         const teamProfile = buildTeamProfile({
           attending: players,
@@ -838,6 +916,7 @@ const AutoPlan = () => {
               })),
             ],
           });
+          if (!isActiveGeneration()) return;
 
           const applyExplainWhy = (drills: Drill[]) =>
             drills.map((drill) => ({ ...drill, explainWhy: explainWhyMap[drill.id] }));
@@ -849,6 +928,7 @@ const AutoPlan = () => {
             coach_notes: "Generated locally based on your practice defaults.",
           });
 
+          setGenerationProgress(100);
           toast.warning("AI plan failed. Generated a local plan instead.");
           return;
         }
@@ -856,7 +936,9 @@ const AutoPlan = () => {
       const errorMessage = error instanceof Error ? error.message : "Failed to generate practice plan. Please try again.";
       toast.error(errorMessage);
     } finally {
-      setIsGenerating(false);
+      if (isActiveGeneration()) {
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -891,15 +973,27 @@ const AutoPlan = () => {
     }
   }, [currentTeam?.id, duration, generatedPlan, navigate, practiceTitle, user]);
 
+  const isGeneratedPlanBottomActionVisible =
+    Boolean(generatedPlan) && location.pathname === "/";
+
   useEffect(() => {
-    return registerMobileBottomAction({
-      active: Boolean(generatedPlan),
-      label: "Save and Continue to Practice",
-      compactLabel: "Continue to practice",
-      isLoading: isSaving,
-      onClick: handleSaveAndContinue,
-    });
-  }, [generatedPlan, handleSaveAndContinue, isSaving, registerMobileBottomAction]);
+    return registerMobileBottomAction(
+      isGeneratedPlanBottomActionVisible
+        ? {
+            active: true,
+            label: "Save and Continue to Practice",
+            compactLabel: "Continue to practice",
+            isLoading: isSaving,
+            onClick: handleSaveAndContinue,
+          }
+        : null
+    );
+  }, [
+    handleSaveAndContinue,
+    isGeneratedPlanBottomActionVisible,
+    isSaving,
+    registerMobileBottomAction,
+  ]);
 
  // Get last practice rating if available
   const lastPracticeRating = useMemo(() => {
@@ -909,6 +1003,74 @@ const AutoPlan = () => {
     if (items.length === 0) return null;
     return (items.reduce((sum, i) => sum + i.rating, 0) / items.length).toFixed(1);
   }, [state.feedback]);
+
+  const generationRemainingSeconds = Math.max(
+    1,
+    Math.ceil(((100 - generationProgress) / 100) * (GENERATION_ESTIMATE_MS / 1000))
+  );
+
+  const generationOverlay =
+    isGenerating && typeof document !== "undefined"
+      ? createPortal(
+          <div className="fixed inset-x-0 bottom-[calc(5.4rem+var(--app-safe-area-bottom))] top-[var(--mobile-content-top-offset)] z-30 flex items-center justify-center bg-background/35 px-4 backdrop-blur-md animate-in fade-in duration-300 md:bottom-0 md:top-16">
+            <section
+              role="status"
+              aria-live="polite"
+              className="w-full max-w-[calc(100vw-2rem)] rounded-[1.75rem] border border-white/20 bg-zinc-950/95 p-5 text-white shadow-2xl shadow-black/30 animate-in slide-in-from-bottom-4 zoom-in-95 duration-500 sm:max-w-md sm:p-6"
+            >
+              <div className="space-y-5 text-center">
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+                    Generating practice plan
+                  </h2>
+                  <p className="text-sm text-zinc-300">
+                    Building your drill flow from today&apos;s goals, focus areas, and roster.
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-left">
+                  <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">
+                    <span>Progress</span>
+                    <span>{generationRemainingSeconds}s left</span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-label="Practice plan generation progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={generationProgress}
+                    className="h-3 overflow-hidden rounded-full bg-zinc-800 ring-1 ring-white/10"
+                  >
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-zinc-500 via-white to-zinc-300 transition-[width] duration-500 ease-out"
+                      style={{ width: `${generationProgress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 border-white/20 bg-transparent text-white hover:bg-white hover:text-zinc-950"
+                    onClick={handleCancelGeneration}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-11 bg-white text-zinc-950 hover:bg-zinc-200"
+                    onClick={handleReviseGeneration}
+                  >
+                    Revise
+                  </Button>
+                </div>
+              </div>
+            </section>
+          </div>,
+          document.body
+        )
+      : null;
 
   // Empty state: No team created
   if (!currentTeam && teams.length === 0) {
@@ -1039,6 +1201,7 @@ const AutoPlan = () => {
   }
 
   return (
+    <>
     <div className="space-y-5 sm:space-y-8">
      {/* Search-Driven Planning */}
       <Card data-mobile-header-hide-anchor="autoplan" className="rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
@@ -1309,6 +1472,8 @@ const AutoPlan = () => {
         </Button>
       </div>
     </div>
+    {generationOverlay}
+    </>
   );
 };
 
