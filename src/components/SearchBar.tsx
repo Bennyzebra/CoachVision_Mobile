@@ -1,10 +1,18 @@
-import { useEffect, useRef, useState } from "react";
-import { Library, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Library, Loader2, Play, Sparkles } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useMobileBottomAction } from "@/components/MobileBottomActionContext";
 import { useMobilePager } from "@/components/MobilePagerContext";
+import { getMobileBottomBarState } from "@/components/mobileBottomBarState";
 import { cn } from "@/lib/utils";
 
 type RouteMotionDirection = "left" | "right";
+type SearchBarProps = {
+  placement?: "default" | "mobile-bottom";
+};
+
+const MOBILE_CONTROL_MOTION = "420ms cubic-bezier(0.22, 1, 0.36, 1)";
+const MOBILE_ROUTE_LABEL_MOTION_MS = 300;
 
 const emitRouteMotion = (direction: RouteMotionDirection) => {
   window.dispatchEvent(
@@ -14,19 +22,106 @@ const emitRouteMotion = (direction: RouteMotionDirection) => {
   );
 };
 
-export const SearchBar = () => {
+type AnimatedRouteLabelProps = {
+  label: string;
+  className?: string;
+};
+
+const AnimatedRouteLabel = ({ label, className }: AnimatedRouteLabelProps) => {
+  const [displayLabel, setDisplayLabel] = useState(label);
+  const [incomingLabel, setIncomingLabel] = useState(label);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const visibleLabelRef = useRef(label);
+  const transitionFrameRef = useRef<number | null>(null);
+  const transitionTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (label === visibleLabelRef.current) return;
+
+    if (transitionFrameRef.current !== null) {
+      window.cancelAnimationFrame(transitionFrameRef.current);
+      transitionFrameRef.current = null;
+    }
+
+    if (transitionTimerRef.current !== null) {
+      window.clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = null;
+    }
+
+    const previousLabel = visibleLabelRef.current;
+    visibleLabelRef.current = label;
+
+    setDisplayLabel(previousLabel);
+    setIncomingLabel(label);
+    setIsTransitioning(false);
+
+    transitionFrameRef.current = window.requestAnimationFrame(() => {
+      setIsTransitioning(true);
+    });
+
+    transitionTimerRef.current = window.setTimeout(() => {
+      setDisplayLabel(label);
+      setIsTransitioning(false);
+    }, MOBILE_ROUTE_LABEL_MOTION_MS);
+
+    return () => {
+      if (transitionFrameRef.current !== null) {
+        window.cancelAnimationFrame(transitionFrameRef.current);
+        transitionFrameRef.current = null;
+      }
+      if (transitionTimerRef.current !== null) {
+        window.clearTimeout(transitionTimerRef.current);
+        transitionTimerRef.current = null;
+      }
+    };
+  }, [label]);
+
+  const isAnimating = displayLabel !== incomingLabel || isTransitioning;
+
+  return (
+    <div
+      className={cn(
+        "relative flex h-10 min-w-0 flex-1 items-center justify-center overflow-hidden text-center text-[15px] font-medium text-foreground",
+        className
+      )}
+    >
+      <span
+        className={cn(
+          "absolute inset-0 flex items-center justify-center px-1 transition-all duration-300 ease-out motion-reduce:transition-none",
+          isAnimating ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"
+        )}
+      >
+        {displayLabel}
+      </span>
+      <span
+        aria-hidden={!isAnimating}
+        className={cn(
+          "absolute inset-0 flex items-center justify-center px-1 transition-all duration-300 ease-out motion-reduce:transition-none",
+          isAnimating ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+        )}
+      >
+        {incomingLabel}
+      </span>
+    </div>
+  );
+};
+
+export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const mobilePager = useMobilePager();
+  const { action: mobileBottomAction } = useMobileBottomAction();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [mobilePagerDragOffset, setMobilePagerDragOffset] = useState<number | null>(null);
+  const [generatedPlanNavExpanded, setGeneratedPlanNavExpanded] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
   const touchDeltaXRef = useRef(0);
   const suppressClickRef = useRef(false);
   const hasPointerCaptureRef = useRef(false);
   const mobilePagerStartOffsetRef = useRef(0);
 
+  const mobileBottomBarState = getMobileBottomBarState(location.pathname);
   const isAutoPlanActive =
     location.pathname === "/" ||
     location.pathname.startsWith("/plan") ||
@@ -36,48 +131,7 @@ export const SearchBar = () => {
     location.pathname.startsWith("/drill") ||
     location.pathname.startsWith("/discover");
 
-  const getStatusLabel = (pathname: string) => {
-    if (pathname === "/") {
-      return "Generate Practice Plan";
-    }
-    if (pathname.startsWith("/plan")) {
-      return "Practice Plan";
-    }
-    if (pathname.startsWith("/run")) {
-      return "Run Practice";
-    }
-    if (pathname.startsWith("/drill")) {
-      return "Drill Details";
-    }
-    if (pathname.startsWith("/discover") || pathname.startsWith("/drills")) {
-      return "Discover Drills";
-    }
-    if (pathname.startsWith("/team")) {
-      return "Team & Roster";
-    }
-    if (pathname.startsWith("/settings")) {
-      return "Settings";
-    }
-    if (pathname.startsWith("/practice-tracker")) {
-      return "Practice History";
-    }    
-    if (pathname.startsWith("/submit")) {
-      return "Submit Drill";
-    }
-    if (pathname.startsWith("/feedback")) {
-      return "Feedback";
-    }
-    if (pathname.startsWith("/suggestions")) {
-      return "Suggestions";
-    }
-    if (pathname.startsWith("/onboarding")) {
-      return "Onboarding";
-    }
-    if (pathname.startsWith("/upgrade")) {
-      return "Upgrade";
-    }
-    return "CoachVision";
-  };
+  const getStatusLabel = (pathname: string) => getMobileBottomBarState(pathname).label;
 
   const label = getStatusLabel(location.pathname);
   const containerWidthClass =
@@ -98,7 +152,12 @@ export const SearchBar = () => {
   const mobilePagerTrackOffset = mobilePagerDragOffset ?? mobilePagerRestingOffset;
   const mobilePagerTransition = mobilePager?.isDragging
     ? "none"
-    : "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)";
+    : `transform ${MOBILE_CONTROL_MOTION}`;
+  const isGeneratedPlanActionActive = Boolean(
+    placement === "mobile-bottom" && mobileBottomAction?.active
+  );
+  const generatedPlanFullLabel = mobileBottomAction?.label ?? "Save and Continue to Practice";
+  const generatedPlanCompactLabel = mobileBottomAction?.compactLabel ?? "Continue to practice";
 
   useEffect(() => {
     const element = containerRef.current;
@@ -110,7 +169,26 @@ export const SearchBar = () => {
     const observer = new ResizeObserver(updateWidth);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [generatedPlanNavExpanded, isGeneratedPlanActionActive]);
+
+  const collapseGeneratedPlanNav = useCallback(() => {
+    if (!isGeneratedPlanActionActive) return;
+    setGeneratedPlanNavExpanded(false);
+  }, [isGeneratedPlanActionActive]);
+
+  useEffect(() => {
+    if (!isGeneratedPlanActionActive) {
+      setGeneratedPlanNavExpanded(false);
+      return;
+    }
+
+    window.addEventListener("scroll", collapseGeneratedPlanNav, { passive: true });
+    window.addEventListener("touchmove", collapseGeneratedPlanNav, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", collapseGeneratedPlanNav);
+      window.removeEventListener("touchmove", collapseGeneratedPlanNav);
+    };
+  }, [collapseGeneratedPlanNav, isGeneratedPlanActionActive]);
 
   const navigateWithMotion = (path: string, direction: RouteMotionDirection) => {
     emitRouteMotion(direction);
@@ -183,67 +261,141 @@ export const SearchBar = () => {
     }, 120);
   };
 
-  if (isMobilePagerEnabled) {
-    const renderPagerPill = (target: "autoplan" | "library") => {
-      const isAutoPlanTarget = target === "autoplan";
-      const isActiveTarget = isAutoPlanTarget ? pagerProgress < 0.5 : pagerProgress >= 0.5;
-      const pillLabel = isAutoPlanTarget ? getStatusLabel("/") : getStatusLabel("/drills");
-      const handleAutoPlanClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-        if (suppressClickRef.current) return;
-        mobilePager?.goToPage("autoplan");
-      };
-      const handleLibraryClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-        if (suppressClickRef.current) return;
-        mobilePager?.goToPage("library");
-      };
+  const renderPagerPill = (target: "autoplan" | "library") => {
+    const isAutoPlanTarget = target === "autoplan";
+    const isActiveTarget = isAutoPlanTarget ? pagerProgress < 0.5 : pagerProgress >= 0.5;
+    const pillLabel = isAutoPlanTarget ? getStatusLabel("/") : getStatusLabel("/drills");
+    const handleAutoPlanClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      if (suppressClickRef.current) return;
+      mobilePager?.goToPage("autoplan");
+    };
+    const handleLibraryClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      if (suppressClickRef.current) return;
+      mobilePager?.goToPage("library");
+    };
 
-      return (
-        <div
-          className="flex h-12 shrink-0 items-center overflow-hidden rounded-full bg-muted px-2"
-          style={{ width: containerWidth || undefined }}
-          aria-hidden={!isActiveTarget}
+    return (
+      <div
+        className="flex h-12 shrink-0 items-center overflow-hidden rounded-full bg-muted px-2"
+        style={{ width: containerWidth || undefined }}
+        aria-hidden={!isActiveTarget}
+      >
+        <button
+          onClick={handleAutoPlanClick}
+          tabIndex={isActiveTarget ? 0 : -1}
+          className={cn(
+            "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+            isAutoPlanTarget
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+          )}
+          title="Auto-Plan"
         >
+          <Sparkles className="h-5 w-5" />
+        </button>
+
+        <div className="mx-2 h-6 w-[1px] shrink-0 bg-border" />
+
+        <div className="flex h-10 min-w-0 flex-1 items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-medium text-foreground">
+          {pillLabel}
+        </div>
+
+        <div className="mx-2 h-6 w-[1px] shrink-0 bg-border" />
+
+        <button
+          onClick={handleLibraryClick}
+          tabIndex={isActiveTarget ? 0 : -1}
+          className={cn(
+            "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+            isAutoPlanTarget
+              ? "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              : "bg-primary text-primary-foreground shadow-sm"
+          )}
+          title="Drill Library"
+        >
+          <Library className="h-5 w-5" />
+        </button>
+      </div>
+    );
+  };
+
+  if (isGeneratedPlanActionActive && mobileBottomAction) {
+    return (
+      <div
+        className="flex w-full max-w-[calc(100vw-2rem)] items-center gap-3"
+        style={{ transition: `all ${MOBILE_CONTROL_MOTION}` }}
+      >
+        {generatedPlanNavExpanded ? (
+          <div
+            ref={containerRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerEnd}
+            className="relative h-12 min-w-0 flex-1 touch-pan-y overflow-hidden transition-[width,flex-basis] will-change-[width]"
+            style={{ transition: `width ${MOBILE_CONTROL_MOTION}, flex-basis ${MOBILE_CONTROL_MOTION}` }}
+          >
+            <div
+              className="flex h-full will-change-transform"
+              style={{
+                gap: `${mobilePagerGap}px`,
+                transform: `translate3d(${mobilePagerTrackOffset}px, 0, 0)`,
+                transition: mobilePagerTransition,
+              }}
+            >
+              {renderPagerPill("autoplan")}
+              {renderPagerPill("library")}
+            </div>
+          </div>
+        ) : (
           <button
-            onClick={handleAutoPlanClick}
-            tabIndex={isActiveTarget ? 0 : -1}
-            className={cn(
-              "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
-              isAutoPlanTarget
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
-            )}
-            title="Auto-Plan"
+            type="button"
+            onClick={() => setGeneratedPlanNavExpanded(true)}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted text-primary shadow-sm transition-[width,background-color,color] hover:bg-muted/80"
+            style={{
+              transition: `width ${MOBILE_CONTROL_MOTION}, background-color ${MOBILE_CONTROL_MOTION}, color ${MOBILE_CONTROL_MOTION}`,
+            }}
+            aria-label="Show navigation"
+            title="Generate Practice Plan"
           >
             <Sparkles className="h-5 w-5" />
           </button>
+        )}
 
-          <div className="mx-2 h-6 w-[1px] shrink-0 bg-border" />
+        <button
+          type="button"
+          onClick={mobileBottomAction.onClick}
+          disabled={mobileBottomAction.isLoading}
+          className={cn(
+            "flex h-12 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground shadow-sm transition-[width,flex,background-color,color] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-70",
+            generatedPlanNavExpanded
+              ? "w-12 shrink-0 px-0"
+              : "min-w-0 flex-1 gap-2 px-4 text-sm"
+          )}
+          style={{
+            transition: `width ${MOBILE_CONTROL_MOTION}, flex ${MOBILE_CONTROL_MOTION}, background-color ${MOBILE_CONTROL_MOTION}, color ${MOBILE_CONTROL_MOTION}`,
+          }}
+          aria-label={generatedPlanNavExpanded ? generatedPlanCompactLabel : generatedPlanFullLabel}
+          title={generatedPlanNavExpanded ? generatedPlanCompactLabel : generatedPlanFullLabel}
+        >
+          {mobileBottomAction.isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Play className="h-5 w-5 shrink-0" />
+          )}
+          {!generatedPlanNavExpanded && (
+            <span className="min-w-0 truncate whitespace-nowrap">
+              {mobileBottomAction.isLoading ? "Saving..." : generatedPlanFullLabel}
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  }
 
-          <div className="flex h-10 min-w-0 flex-1 items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-medium text-foreground">
-            {pillLabel}
-          </div>
-
-          <div className="mx-2 h-6 w-[1px] shrink-0 bg-border" />
-
-          <button
-            onClick={handleLibraryClick}
-            tabIndex={isActiveTarget ? 0 : -1}
-            className={cn(
-              "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
-              isAutoPlanTarget
-                ? "text-muted-foreground hover:bg-background/50 hover:text-foreground"
-                : "bg-primary text-primary-foreground shadow-sm"
-            )}
-            title="Drill Library"
-          >
-            <Library className="h-5 w-5" />
-          </button>
-        </div>
-      );
-    };
-
+  if (isMobilePagerEnabled) {
     return (
       <div className="flex w-full flex-col items-center">
         <div
@@ -281,7 +433,11 @@ export const SearchBar = () => {
         onPointerCancel={handlePointerEnd}
         className={cn(
           "relative flex items-center overflow-hidden bg-muted hover:bg-muted/80 rounded-full transition-[width,background-color] duration-300 ease-out h-12 px-2",
-          isMobilePagerEnabled ? "w-[19rem] max-w-[calc(100vw-2rem)] touch-pan-y" : containerWidthClass
+          isMobilePagerEnabled
+            ? "w-[19rem] max-w-[calc(100vw-2rem)] touch-pan-y"
+            : placement === "mobile-bottom"
+              ? mobileBottomBarState.widthClass
+              : containerWidthClass
         )}
       >
         {isMobilePagerEnabled && (
@@ -324,9 +480,13 @@ export const SearchBar = () => {
         <div className="relative z-10 h-6 w-[1px] bg-border mx-2 flex-shrink-0" />
 
         {/* Center Label */}
-        <div className="relative z-10 flex-1 h-10 min-w-0 flex items-center justify-center text-[15px] font-medium text-foreground whitespace-nowrap overflow-hidden text-ellipsis">
-          {label}
-        </div>
+        {placement === "mobile-bottom" ? (
+          <AnimatedRouteLabel label={mobileBottomBarState.label} className="relative z-10" />
+        ) : (
+          <div className="relative z-10 flex-1 h-10 min-w-0 flex items-center justify-center text-[15px] font-medium text-foreground whitespace-nowrap overflow-hidden text-ellipsis">
+            {label}
+          </div>
+        )}
 
         {/* Vertical Separator Line - Right */}
         <div className="relative z-10 h-6 w-[1px] bg-border mx-2 flex-shrink-0" />

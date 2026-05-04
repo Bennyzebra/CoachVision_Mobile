@@ -24,7 +24,6 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useMobileBottomAction } from "@/components/MobileBottomActionContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTeam } from "@/contexts/TeamContext";
 import { DrillFeedbackRating, Drill } from "@/types";
@@ -163,7 +162,6 @@ const AutoPlan = () => {
     cool_down: Drill[];
     coach_notes: string;
   } | null>(null);
-  const { registerMobileBottomAction } = useMobileBottomAction();
    
   // Search-driven planning state
   const [searchText, setSearchText] = useState("");
@@ -860,7 +858,7 @@ const AutoPlan = () => {
     }
   };
 
-  const handleSaveAndContinue = useCallback(async () => {
+  const handleSaveAndContinue = async () => {
     if (!generatedPlan || !user) {
       toast.error("Unable to save practice");
       return;
@@ -889,17 +887,7 @@ const AutoPlan = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [currentTeam?.id, duration, generatedPlan, navigate, practiceTitle, user]);
-
-  useEffect(() => {
-    return registerMobileBottomAction({
-      active: Boolean(generatedPlan),
-      label: "Save and Continue to Practice",
-      compactLabel: "Continue to practice",
-      isLoading: isSaving,
-      onClick: handleSaveAndContinue,
-    });
-  }, [generatedPlan, handleSaveAndContinue, isSaving, registerMobileBottomAction]);
+  };
 
  // Get last practice rating if available
   const lastPracticeRating = useMemo(() => {
@@ -966,13 +954,8 @@ const AutoPlan = () => {
       <div className="space-y-5 sm:space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="mb-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-2xl font-bold leading-tight sm:text-3xl">
-              <img
-                src="/CoachVision_Favicon.png"
-                alt=""
-                aria-hidden="true"
-                className="h-8 w-8 shrink-0 object-contain sm:h-9 sm:w-9"
-              />
+            <h1 className="mb-2 flex items-center gap-2 text-2xl font-bold leading-tight sm:text-3xl">
+              <Sparkles className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
               {isEditingPracticeTitle ? (
                 <Input
                   ref={practiceTitleInputRef}
@@ -983,7 +966,7 @@ const AutoPlan = () => {
                   placeholder="Name practice"
                   enterKeyHint="done"
                   aria-label="Practice name"
-                  className="h-auto min-h-[3.25rem] min-w-0 border-0 bg-transparent px-2 py-1 text-2xl font-bold leading-[1.2] shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-3xl"
+                  className="h-11 min-w-0 flex-1 border-0 bg-transparent px-1 py-0 text-2xl font-bold leading-tight shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-3xl"
                 />
               ) : (
                 <button
@@ -1092,8 +1075,8 @@ const AutoPlan = () => {
         <CardContent className="space-y-5 p-3 sm:space-y-7 sm:p-5">
           <div className="space-y-3">
             <Label className="text-base font-semibold">Practice Intensity</Label>
-            <div className="-mx-1 overflow-x-auto scrollbar-none px-1 pb-1">
-              <div className="flex min-w-max gap-2">
+            <div className="scrollbar-none -mx-1 overflow-x-auto px-1 pb-1">
+              <div className="flex w-max gap-2">
                 {intensityOptions.map((option) => {
                   const isSelected = practiceDefaults.intensityPreference === option.id;
 
@@ -1108,10 +1091,10 @@ const AutoPlan = () => {
                           intensityPreference: option.id,
                         }))
                       }
-                      className={`inline-flex min-h-9 w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold capitalize text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                      className={`inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold leading-none capitalize text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                         isSelected
-                          ? "border-2 border-primary-foreground bg-primary shadow-sm"
-                          : "border-primary/35 bg-primary/75 hover:border-primary/60 hover:bg-primary/85"
+                          ? "border-2 border-primary bg-primary shadow-sm"
+                          : "border-primary/40 bg-primary/70 hover:border-primary hover:bg-primary/85"
                       }`}
                     >
                       {option.label}

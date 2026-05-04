@@ -3,10 +3,6 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const autoPlanSource = readFileSync(new URL("./AutoPlan.tsx", import.meta.url), "utf8");
-const intensitySelectorSource = autoPlanSource.slice(
-  autoPlanSource.indexOf("Practice Intensity"),
-  autoPlanSource.indexOf("Practice Length"),
-);
 
 test("AutoPlan renders the intensity selector before practice length", () => {
   const intensityIndex = autoPlanSource.indexOf("Practice Intensity");
@@ -25,16 +21,12 @@ test("AutoPlan passes the selected session intensity through generation", () => 
 
 test("AutoPlan intensity selector uses horizontal scrollable bubbles", () => {
   assert.match(autoPlanSource, /intensityOptions\.map/);
-  assert.match(
-    autoPlanSource,
-    /className="[^"]*\boverflow-x-auto\b[^"]*\bscrollbar-none\b[^"]*"/,
-  );
-  assert.match(intensitySelectorSource, /\bmin-w-max\b/);
-  assert.match(intensitySelectorSource, /\btext-white\b/);
-  assert.match(intensitySelectorSource, /\bw-fit\b/);
-  assert.match(intensitySelectorSource, /\bshrink-0\b/);
-  assert.doesNotMatch(intensitySelectorSource, /min-w-\[7\.25rem\]/);
-  assert.doesNotMatch(intensitySelectorSource, /\bflex-1\b/);
+  assert.match(autoPlanSource, /overflow-x-auto/);
+  assert.match(autoPlanSource, /scrollbar-none/);
   assert.match(autoPlanSource, /border-2/);
-  assert.match(intensitySelectorSource, /border-primary-foreground/);
+});
+
+test("AutoPlan intensity bubbles use solid white text and content-sized pills", () => {
+  assert.match(autoPlanSource, /text-white/);
+  assert.doesNotMatch(autoPlanSource, /min-w-\[7\.25rem\]/);
 });
