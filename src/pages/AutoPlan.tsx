@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Sparkles,
   Users,
@@ -50,6 +51,7 @@ import {
   normalizeIntensityPreference,
   type NormalizedIntensityPreference,
 } from "@/lib/planning/intensityPreference";
+import { selectPracticePlanCandidateDrills } from "@/lib/planning/drillCandidates";
 import {
   generateDrillExplainWhys,
   generatePracticePlan,
@@ -70,6 +72,7 @@ const MIN_PRACTICE_DURATION = 10;
 const MAX_PRACTICE_DURATION = 240;
 const GENERATION_ESTIMATE_MS = 30000;
 const GENERATION_PROGRESS_MAX_BEFORE_COMPLETE = 92;
+const GENERATION_STILL_WORKING_MS = 9000;
 
 const clampPracticeDuration = (value: number) =>
   Math.min(MAX_PRACTICE_DURATION, Math.max(MIN_PRACTICE_DURATION, value));
@@ -95,6 +98,10 @@ const focusOptions = [
 ] as const;
 
 type FocusOption = (typeof focusOptions)[number]["id"];
+type CachedGenerationDrills = {
+  key: string;
+  drills: Drill[];
+};
 
 const intensityOptions: Array<{ id: NormalizedIntensityPreference; label: string }> =
   intensityPreferenceOptions.map((id) => ({
@@ -116,6 +123,14 @@ const focusKeywordMap: Record<string, FocusOption> = {
   shooting: "shooting",
   shot: "shooting",
 };
+
+const defaultFastMode = () => {
+  if (typeof window === "undefined") return true;
+  return window.matchMedia("(max-width: 767px)").matches;
+};
+
+const getPerformanceNow = () =>
+  typeof performance !== "undefined" ? performance.now() : Date.now();
 
 const normalizeFocusDistribution = (
   distribution: Record<FocusArea, number>
@@ -159,6 +174,8 @@ const AutoPlan = () => {
   const [teamDrillOutcomes, setTeamDrillOutcomes] = useState<Record<string, TeamDrillOutcome>>({});  
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [showStillWorking, setShowStillWorking] = useState(false);
+  const [fastMode, setFastMode] = useState(defaultFastMode);
   const [isSaving, setIsSaving] = useState(false);
   const [practiceTitle, setPracticeTitle] = useState("");
   const [practiceTitleEditValue, setPracticeTitleEditValue] = useState("");
@@ -179,6 +196,7 @@ const AutoPlan = () => {
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const drillOutcomesUnavailableLoggedRef = useRef(false);
   const generationRequestIdRef = useRef(0);
+  const generationDrillsCacheRef = useRef<CachedGenerationDrills | null>(null);
   
   const normalizedDefaults = useMemo(
     () => ({
@@ -282,11 +300,13 @@ const AutoPlan = () => {
   useEffect(() => {
     if (!isGenerating) {
       setGenerationProgress(0);
+      setShowStillWorking(false);
       return;
     }
 
     const startedAt = Date.now();
     setGenerationProgress(8);
+    setShowStillWorking(false);
 
     const interval = window.setInterval(() => {
       const elapsed = Date.now() - startedAt;
@@ -296,7 +316,14 @@ const AutoPlan = () => {
       );
     }, 450);
 
-    return () => window.clearInterval(interval);
+    const stillWorkingTimeout = window.setTimeout(() => {
+      setShowStillWorking(true);
+    }, GENERATION_STILL_WORKING_MS);
+
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(stillWorkingTimeout);
+    };
   }, [isGenerating]);
   
   useEffect(() => {
@@ -749,26 +776,54 @@ const AutoPlan = () => {
 
     setIsGenerating(true);
     setGenerationProgress(8);
+    setShowStillWorking(false);
 
     let availableDrills: Drill[] = [];
     let coachRequirements: CoachRequirements | null = null;
+    const generationTimings = {
+      drillsFetchMs: 0,
+      planGenerationMs: 0,
+      explainWhyMs: 0,
+      totalMs: 0,
+      usedCachedDrills: false,
+      candidateDrills: 0,
+    };
+    const generationStartedAt = getPerformanceNow();
     
     try {
-      let drillsQuery = supabase
-      .from('drills')
-        .select('*');
+      const drillsFetchStartedAt = getPerformanceNow();
+      const cacheKey = user ? `user:${user.id}` : "verified";
+      const cachedGenerationDrills =
+        generationDrillsCacheRef.current?.key === cacheKey
+          ? generationDrillsCacheRef.current.drills
+          : null;
 
-      if (user) {
-        drillsQuery = drillsQuery.or(`verified.eq.true,coach_id.eq.${user.id}`);
+      if (cachedGenerationDrills) {
+        availableDrills = cachedGenerationDrills;
+        generationTimings.usedCachedDrills = true;
       } else {
-        drillsQuery = drillsQuery.eq('verified', true);
+        let drillsQuery = supabase
+          .from('drills')
+          .select('*');
+
+        if (user) {
+          drillsQuery = drillsQuery.or(`verified.eq.true,coach_id.eq.${user.id}`);
+        } else {
+          drillsQuery = drillsQuery.eq('verified', true);
+        }
+
+        const { data: drills, error } = await drillsQuery;
+        
+        if (error) throw error;
+
+        availableDrills = (drills || []).map(mapDrill);
+        generationDrillsCacheRef.current = {
+          key: cacheKey,
+          drills: availableDrills,
+        };
       }
 
-      const { data: drills, error } = await drillsQuery;
-      
-      if (error) throw error;
-
-      availableDrills = (drills || []).map(mapDrill);
+      generationTimings.drillsFetchMs = Math.round(getPerformanceNow() - drillsFetchStartedAt);
       
       const ageGroup = stats.majorityLevel || state.profile.experience || "intermediate";
       const focus = primaryFocus || "offense";
@@ -783,49 +838,65 @@ const AutoPlan = () => {
         intensityPreference: practiceDefaults.intensityPreference,
       };
 
-      const result = await generatePracticePlan(coachRequirements, availableDrills);
+      const candidateDrills = selectPracticePlanCandidateDrills(availableDrills, {
+        ageGroup,
+        focus,
+        duration,
+        goals,
+        recentDrillIds: state.plan.map((item) => item.drillId),
+      });
+      generationTimings.candidateDrills = candidateDrills.length;
+
+      const planGenerationStartedAt = getPerformanceNow();
+      const result = await generatePracticePlan(coachRequirements, candidateDrills);
+      generationTimings.planGenerationMs = Math.round(getPerformanceNow() - planGenerationStartedAt);
       if (!isActiveGeneration()) return;
 
       const teamProfileSummary = currentTeam?.team_profile_summary as TeamProfileSummary | null | undefined;
-      const explainWhyMap = await generateDrillExplainWhys({
-        coachRequirements,
-        teamProfileSummary,
-        drills: [
-          ...result.warmup.map((drill) => {
-            const mapped = mapDrill(drill);
-            return {
-              id: mapped.id,
-              name: mapped.name,
-              focus: mapped.focus,
-              duration: mapped.duration,
-              segment: "warmup",
-              tags: mapped.tags,
-            };
-          }),
-          ...result.main_segment.map((drill) => {
-            const mapped = mapDrill(drill);
-            return {
-              id: mapped.id,
-              name: mapped.name,
-              focus: mapped.focus,
-              duration: mapped.duration,
-              segment: "main",
-              tags: mapped.tags,
-            };
-          }),
-          ...result.cool_down.map((drill) => {
-            const mapped = mapDrill(drill);
-            return {
-              id: mapped.id,
-              name: mapped.name,
-              focus: mapped.focus,
-              duration: mapped.duration,
-              segment: "cooldown",
-              tags: mapped.tags,
-            };
-          }),
-        ],
-      });
+      let explainWhyMap: Record<string, string> = {};
+      if (!fastMode) {
+        const explainWhyStartedAt = getPerformanceNow();
+        explainWhyMap = await generateDrillExplainWhys({
+          coachRequirements,
+          teamProfileSummary,
+          drills: [
+            ...result.warmup.map((drill) => {
+              const mapped = mapDrill(drill);
+              return {
+                id: mapped.id,
+                name: mapped.name,
+                focus: mapped.focus,
+                duration: mapped.duration,
+                segment: "warmup",
+                tags: mapped.tags,
+              };
+            }),
+            ...result.main_segment.map((drill) => {
+              const mapped = mapDrill(drill);
+              return {
+                id: mapped.id,
+                name: mapped.name,
+                focus: mapped.focus,
+                duration: mapped.duration,
+                segment: "main",
+                tags: mapped.tags,
+              };
+            }),
+            ...result.cool_down.map((drill) => {
+              const mapped = mapDrill(drill);
+              return {
+                id: mapped.id,
+                name: mapped.name,
+                focus: mapped.focus,
+                duration: mapped.duration,
+                segment: "cooldown",
+                tags: mapped.tags,
+              };
+            }),
+          ],
+        });
+        generationTimings.explainWhyMs = Math.round(getPerformanceNow() - explainWhyStartedAt);
+      }
       if (!isActiveGeneration()) return;
 
       const mapDrillWithExplainWhy = (drill: Record<string, unknown>) => {
@@ -886,36 +957,41 @@ const AutoPlan = () => {
             else main_segment.push(drillWithDuration);
           });
 
-          const explainWhyMap = await generateDrillExplainWhys({
-            coachRequirements,
-            teamProfileSummary,
-            drills: [
-              ...warmup.map((drill) => ({
-                id: drill.id,
-                name: drill.name,
-                focus: drill.focus,
-                duration: drill.duration,
-                segment: "warmup",
-                tags: drill.tags,
-              })),
-              ...main_segment.map((drill) => ({
-                id: drill.id,
-                name: drill.name,
-                focus: drill.focus,
-                duration: drill.duration,
-                segment: "main",
-                tags: drill.tags,
-              })),
-              ...cool_down.map((drill) => ({
-                id: drill.id,
-                name: drill.name,
-                focus: drill.focus,
-                duration: drill.duration,
-                segment: "cooldown",
-                tags: drill.tags,
-              })),
-            ],
-          });
+          let explainWhyMap: Record<string, string> = {};
+          if (!fastMode) {
+            const explainWhyStartedAt = getPerformanceNow();
+            explainWhyMap = await generateDrillExplainWhys({
+              coachRequirements,
+              teamProfileSummary,
+              drills: [
+                ...warmup.map((drill) => ({
+                  id: drill.id,
+                  name: drill.name,
+                  focus: drill.focus,
+                  duration: drill.duration,
+                  segment: "warmup",
+                  tags: drill.tags,
+                })),
+                ...main_segment.map((drill) => ({
+                  id: drill.id,
+                  name: drill.name,
+                  focus: drill.focus,
+                  duration: drill.duration,
+                  segment: "main",
+                  tags: drill.tags,
+                })),
+                ...cool_down.map((drill) => ({
+                  id: drill.id,
+                  name: drill.name,
+                  focus: drill.focus,
+                  duration: drill.duration,
+                  segment: "cooldown",
+                  tags: drill.tags,
+                })),
+              ],
+            });
+            generationTimings.explainWhyMs = Math.round(getPerformanceNow() - explainWhyStartedAt);
+          }
           if (!isActiveGeneration()) return;
 
           const applyExplainWhy = (drills: Drill[]) =>
@@ -936,6 +1012,8 @@ const AutoPlan = () => {
       const errorMessage = error instanceof Error ? error.message : "Failed to generate practice plan. Please try again.";
       toast.error(errorMessage);
     } finally {
+      generationTimings.totalMs = Math.round(getPerformanceNow() - generationStartedAt);
+      console.info("[AutoPlan] generation timings", generationTimings);
       if (isActiveGeneration()) {
         setIsGenerating(false);
       }
@@ -1026,6 +1104,11 @@ const AutoPlan = () => {
                   <p className="text-sm text-zinc-300">
                     Building your drill flow from today&apos;s goals, focus areas, and roster.
                   </p>
+                  {showStillWorking && (
+                    <p className="text-sm font-medium text-white">
+                      Still working. Keep waiting, revise, or cancel.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2 text-left">
@@ -1253,6 +1336,21 @@ const AutoPlan = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 p-3 sm:space-y-7 sm:p-5">
+          <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/25 px-3 py-3">
+            <Label htmlFor="fast-mode" className="min-w-0 space-y-1">
+              <span className="block text-base font-semibold">Fast Mode</span>
+              <span className="block text-xs font-normal text-muted-foreground">
+                Skip drill explanations while generating.
+              </span>
+            </Label>
+            <Switch
+              id="fast-mode"
+              checked={fastMode}
+              onCheckedChange={setFastMode}
+              aria-label="Toggle Fast Mode"
+            />
+          </div>
+
           <div className="space-y-3">
             <Label className="text-base font-semibold">Practice Intensity</Label>
             <div className="-mx-1 overflow-x-auto scrollbar-none px-1 pb-1">
