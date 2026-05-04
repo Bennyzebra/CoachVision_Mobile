@@ -261,13 +261,20 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
     }, 120);
   };
 
-  const renderPagerPill = (target: "autoplan" | "library") => {
+  const renderPagerPill = (
+    target: "autoplan" | "library",
+    options: { onAutoPlanIconClick?: () => void } = {}
+  ) => {
     const isAutoPlanTarget = target === "autoplan";
     const isActiveTarget = isAutoPlanTarget ? pagerProgress < 0.5 : pagerProgress >= 0.5;
     const pillLabel = isAutoPlanTarget ? getStatusLabel("/") : getStatusLabel("/drills");
     const handleAutoPlanClick = (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
       if (suppressClickRef.current) return;
+      if (options.onAutoPlanIconClick) {
+        options.onAutoPlanIconClick();
+        return;
+      }
       mobilePager?.goToPage("autoplan");
     };
     const handleLibraryClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -324,7 +331,7 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
   if (isGeneratedPlanActionActive && mobileBottomAction) {
     return (
       <div
-        className="flex w-full max-w-[calc(100vw-2rem)] items-center gap-3"
+        className="relative h-12 w-full max-w-[calc(100vw-2rem)]"
         style={{ transition: `all ${MOBILE_CONTROL_MOTION}` }}
       >
         {generatedPlanNavExpanded ? (
@@ -334,8 +341,11 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerEnd}
             onPointerCancel={handlePointerEnd}
-            className="relative h-12 min-w-0 flex-1 touch-pan-y overflow-hidden transition-[width,flex-basis] will-change-[width]"
-            style={{ transition: `width ${MOBILE_CONTROL_MOTION}, flex-basis ${MOBILE_CONTROL_MOTION}` }}
+            className="absolute left-0 top-0 h-12 touch-pan-y overflow-hidden transition-[width] will-change-[width]"
+            style={{
+              width: "calc(100% - 3.75rem)",
+              transition: `width ${MOBILE_CONTROL_MOTION}`,
+            }}
           >
             <div
               className="flex h-full will-change-transform"
@@ -345,7 +355,9 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
                 transition: mobilePagerTransition,
               }}
             >
-              {renderPagerPill("autoplan")}
+              {renderPagerPill("autoplan", {
+                onAutoPlanIconClick: () => setGeneratedPlanNavExpanded(false),
+              })}
               {renderPagerPill("library")}
             </div>
           </div>
@@ -353,7 +365,7 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
           <button
             type="button"
             onClick={() => setGeneratedPlanNavExpanded(true)}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted text-primary shadow-sm transition-[width,background-color,color] hover:bg-muted/80"
+            className="absolute left-0 top-0 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-primary shadow-sm transition-[width,background-color,color] hover:bg-muted/80"
             style={{
               transition: `width ${MOBILE_CONTROL_MOTION}, background-color ${MOBILE_CONTROL_MOTION}, color ${MOBILE_CONTROL_MOTION}`,
             }}
@@ -369,13 +381,14 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
           onClick={mobileBottomAction.onClick}
           disabled={mobileBottomAction.isLoading}
           className={cn(
-            "flex h-12 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground shadow-sm transition-[width,flex,background-color,color] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-70",
+            "absolute right-0 top-0 flex h-12 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground shadow-sm transition-[width,background-color,color] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-70",
             generatedPlanNavExpanded
-              ? "w-12 shrink-0 px-0"
-              : "min-w-0 flex-1 gap-2 px-4 text-sm"
+              ? "px-0"
+              : "gap-2 px-4 text-sm"
           )}
           style={{
-            transition: `width ${MOBILE_CONTROL_MOTION}, flex ${MOBILE_CONTROL_MOTION}, background-color ${MOBILE_CONTROL_MOTION}, color ${MOBILE_CONTROL_MOTION}`,
+            width: generatedPlanNavExpanded ? "3rem" : "calc(100% - 3.75rem)",
+            transition: `width ${MOBILE_CONTROL_MOTION}, background-color ${MOBILE_CONTROL_MOTION}, color ${MOBILE_CONTROL_MOTION}`,
           }}
           aria-label={generatedPlanNavExpanded ? generatedPlanCompactLabel : generatedPlanFullLabel}
           title={generatedPlanNavExpanded ? generatedPlanCompactLabel : generatedPlanFullLabel}
