@@ -24,6 +24,7 @@ test("SearchBar renders compact and expanded generated-plan bottom states", () =
   assert.match(searchBarSource, /generatedPlanNavExpanded/);
   assert.match(searchBarSource, /setGeneratedPlanNavExpanded\(true\)/);
   assert.match(searchBarSource, /setGeneratedPlanNavExpanded\(false\)/);
+  assert.match(searchBarSource, /onAutoPlanIconClick: \(\) => setGeneratedPlanNavExpanded\(false\)/);
   assert.match(searchBarSource, /Save and Continue to Practice/);
   assert.match(searchBarSource, /Continue to practice/);
   assert.match(searchBarSource, /<Play className=/);
@@ -31,4 +32,9 @@ test("SearchBar renders compact and expanded generated-plan bottom states", () =
   assert.match(searchBarSource, /window\.addEventListener\("scroll", collapseGeneratedPlanNav/);
   assert.match(searchBarSource, /window\.addEventListener\("touchmove", collapseGeneratedPlanNav/);
   assert.match(searchBarSource, /420ms cubic-bezier\(0\.22, 1, 0\.36, 1\)/);
+});
+
+test("SearchBar anchors the generated-plan save button to the right while it expands", () => {
+  assert.match(searchBarSource, /absolute right-0 top-0/);
+  assert.match(searchBarSource, /width: generatedPlanNavExpanded \? "3rem" : "calc\(100% - 3\.75rem\)"/);
 });
