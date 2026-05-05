@@ -4,6 +4,6 @@ import assert from "node:assert/strict";
 
 const geminiFunctionSource = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
 
-test("Gemini edge function defaults to gemini-2.5-flash-lite", () => {
-  assert.match(geminiFunctionSource, /gemini-2\.5-flash-lite/);
+test("Gemini edge function defaults to gemini-3.1-flash-lite-preview", () => {
+  assert.match(geminiFunctionSource, /gemini-3\.1-flash-lite-preview/);
 });
