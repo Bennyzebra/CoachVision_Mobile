@@ -3,14 +3,18 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const autoPlanSource = readFileSync(new URL("./AutoPlan.tsx", import.meta.url), "utf8");
-const intensitySelectorSource = autoPlanSource.slice(
-  autoPlanSource.indexOf("Practice Intensity"),
-  autoPlanSource.indexOf("Practice Length"),
+const configurationSource = autoPlanSource.slice(
+  autoPlanSource.indexOf("Practice Configuration"),
+  autoPlanSource.indexOf("Choose Focus Areas"),
+);
+const intensitySelectorSource = configurationSource.slice(
+  configurationSource.indexOf("Practice Intensity"),
+  configurationSource.indexOf("Practice Length"),
 );
 
 test("AutoPlan renders the intensity selector before practice length", () => {
-  const intensityIndex = autoPlanSource.indexOf("Practice Intensity");
-  const practiceLengthIndex = autoPlanSource.indexOf("Practice Length");
+  const intensityIndex = configurationSource.indexOf("Practice Intensity");
+  const practiceLengthIndex = configurationSource.indexOf("Practice Length");
 
   assert.ok(intensityIndex > -1, "AutoPlan should render the practice intensity selector");
   assert.ok(practiceLengthIndex > -1, "AutoPlan should render practice length");

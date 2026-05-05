@@ -34,8 +34,10 @@ VITE_SUPABASE_ANON_KEY=...
 Gemini requests are handled by the `gemini` Supabase Edge Function so the API key is not exposed in the browser bundle. Configure Gemini as a Supabase secret instead of a `VITE_` variable:
 
 ```sh
- set GEMINI_API_KEY=...
+set GEMINI_API_KEY=...
 ```
+
+Optional: override the default model with `GEMINI_MODEL` if you need to try a different Gemini variant.
 
 Deploy the function after setting the secret:
 

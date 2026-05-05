@@ -23,6 +23,14 @@ import {
   Star,
   PlusCircle,
   Download,
+  CalendarDays,
+  ChevronRight,
+  Clock3,
+  FileDown,
+  FileText,
+  Gauge,
+  Printer,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useMobileBottomAction } from "@/components/MobileBottomActionContext";
@@ -73,6 +81,22 @@ const GENERATION_PROGRESS_MAX_BEFORE_COMPLETE = 92;
 
 const clampPracticeDuration = (value: number) =>
   Math.min(MAX_PRACTICE_DURATION, Math.max(MIN_PRACTICE_DURATION, value));
+
+const formatPracticeExportDate = (date: Date) =>
+  new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(date);
+
+const formatPracticeExportMonthDate = (date: Date) =>
+  new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+
+const formatPracticeExportIntensity = (intensity: string) =>
+  intensity ? `${intensity.charAt(0).toUpperCase()}${intensity.slice(1)}` : "Balanced";
+
+type GeneratedPracticePlan = {
+  warmup: Drill[];
+  main_segment: Drill[];
+  cool_down: Drill[];
+  coach_notes: string;
+};
 
 // Extended focus options for the new UI
 const focusOptions = [
@@ -163,12 +187,8 @@ const AutoPlan = () => {
   const [practiceTitle, setPracticeTitle] = useState("");
   const [practiceTitleEditValue, setPracticeTitleEditValue] = useState("");
   const [isEditingPracticeTitle, setIsEditingPracticeTitle] = useState(false);
-  const [generatedPlan, setGeneratedPlan] = useState<{
-    warmup: Drill[];
-    main_segment: Drill[];
-    cool_down: Drill[];
-    coach_notes: string;
-  } | null>(null);
+  const [generatedPlan, setGeneratedPlan] = useState<GeneratedPracticePlan | null>(null);
+  const [isGeneratedPlanExportView, setIsGeneratedPlanExportView] = useState(false);
   const { registerMobileBottomAction } = useMobileBottomAction();
    
   // Search-driven planning state
@@ -179,6 +199,7 @@ const AutoPlan = () => {
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const drillOutcomesUnavailableLoggedRef = useRef(false);
   const generationRequestIdRef = useRef(0);
+  const generationAbortControllerRef = useRef<AbortController | null>(null);
   
   const normalizedDefaults = useMemo(
     () => ({
@@ -207,9 +228,10 @@ const AutoPlan = () => {
   const [isEditingDuration, setIsEditingDuration] = useState(false);
   const [practiceDefaults, setPracticeDefaults] = useState(normalizedDefaults);
 
- const [lastProcessedQuery, setLastProcessedQuery] = useState<string | null>(null);
+  const [lastProcessedQuery, setLastProcessedQuery] = useState<string | null>(null);
   const practiceTitleInputRef = useRef<HTMLInputElement | null>(null);
   const skipPracticeTitleBlurCommitRef = useRef(false);
+  const practiceExportDateRef = useRef(new Date());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -247,6 +269,12 @@ const AutoPlan = () => {
       window.sessionStorage.removeItem(GENERATED_PLAN_STORAGE_KEY);
     }
   }, [generatedPlan]); 
+
+  useEffect(() => {
+    if (!generatedPlan) {
+      setIsGeneratedPlanExportView(false);
+    }
+  }, [generatedPlan]);
   
   useEffect(() => {
 
@@ -298,6 +326,12 @@ const AutoPlan = () => {
 
     return () => window.clearInterval(interval);
   }, [isGenerating]);
+
+  useEffect(() => {
+    return () => {
+      generationAbortControllerRef.current?.abort();
+    };
+  }, []);
   
   useEffect(() => {
     const query = searchParams.get("query");
@@ -583,7 +617,23 @@ const AutoPlan = () => {
     }
   };
 
+  const handleGeneratedPlanReorder = useCallback(
+    (updatedSegments: Pick<GeneratedPracticePlan, "warmup" | "main_segment" | "cool_down">) => {
+      setGeneratedPlan((currentPlan) => {
+        if (!currentPlan) return currentPlan;
+
+        return {
+          ...currentPlan,
+          ...updatedSegments,
+        };
+      });
+    },
+    []
+  );
+
   const stopActiveGeneration = useCallback(() => {
+    generationAbortControllerRef.current?.abort();
+    generationAbortControllerRef.current = null;
     generationRequestIdRef.current += 1;
     setIsGenerating(false);
     setGenerationProgress(0);
@@ -746,6 +796,9 @@ const AutoPlan = () => {
     const generationRequestId = generationRequestIdRef.current + 1;
     generationRequestIdRef.current = generationRequestId;
     const isActiveGeneration = () => generationRequestIdRef.current === generationRequestId;
+    const abortController = new AbortController();
+    generationAbortControllerRef.current?.abort();
+    generationAbortControllerRef.current = abortController;
 
     setIsGenerating(true);
     setGenerationProgress(8);
@@ -783,49 +836,54 @@ const AutoPlan = () => {
         intensityPreference: practiceDefaults.intensityPreference,
       };
 
-      const result = await generatePracticePlan(coachRequirements, availableDrills);
+      const result = await generatePracticePlan(coachRequirements, availableDrills, undefined, {
+        signal: abortController.signal,
+      });
       if (!isActiveGeneration()) return;
 
       const teamProfileSummary = currentTeam?.team_profile_summary as TeamProfileSummary | null | undefined;
-      const explainWhyMap = await generateDrillExplainWhys({
-        coachRequirements,
-        teamProfileSummary,
-        drills: [
-          ...result.warmup.map((drill) => {
-            const mapped = mapDrill(drill);
-            return {
-              id: mapped.id,
-              name: mapped.name,
-              focus: mapped.focus,
-              duration: mapped.duration,
-              segment: "warmup",
-              tags: mapped.tags,
-            };
-          }),
-          ...result.main_segment.map((drill) => {
-            const mapped = mapDrill(drill);
-            return {
-              id: mapped.id,
-              name: mapped.name,
-              focus: mapped.focus,
-              duration: mapped.duration,
-              segment: "main",
-              tags: mapped.tags,
-            };
-          }),
-          ...result.cool_down.map((drill) => {
-            const mapped = mapDrill(drill);
-            return {
-              id: mapped.id,
-              name: mapped.name,
-              focus: mapped.focus,
-              duration: mapped.duration,
-              segment: "cooldown",
-              tags: mapped.tags,
-            };
-          }),
-        ],
-      });
+      const explainWhyMap = await generateDrillExplainWhys(
+        {
+          coachRequirements,
+          teamProfileSummary,
+          drills: [
+            ...result.warmup.map((drill) => {
+              const mapped = mapDrill(drill);
+              return {
+                id: mapped.id,
+                name: mapped.name,
+                focus: mapped.focus,
+                duration: mapped.duration,
+                segment: "warmup",
+                tags: mapped.tags,
+              };
+            }),
+            ...result.main_segment.map((drill) => {
+              const mapped = mapDrill(drill);
+              return {
+                id: mapped.id,
+                name: mapped.name,
+                focus: mapped.focus,
+                duration: mapped.duration,
+                segment: "main",
+                tags: mapped.tags,
+              };
+            }),
+            ...result.cool_down.map((drill) => {
+              const mapped = mapDrill(drill);
+              return {
+                id: mapped.id,
+                name: mapped.name,
+                focus: mapped.focus,
+                duration: mapped.duration,
+                segment: "cooldown",
+                tags: mapped.tags,
+              };
+            }),
+          ],
+        },
+        { signal: abortController.signal }
+      );
       if (!isActiveGeneration()) return;
 
       const mapDrillWithExplainWhy = (drill: Record<string, unknown>) => {
@@ -886,36 +944,39 @@ const AutoPlan = () => {
             else main_segment.push(drillWithDuration);
           });
 
-          const explainWhyMap = await generateDrillExplainWhys({
-            coachRequirements,
-            teamProfileSummary,
-            drills: [
-              ...warmup.map((drill) => ({
-                id: drill.id,
-                name: drill.name,
-                focus: drill.focus,
-                duration: drill.duration,
-                segment: "warmup",
-                tags: drill.tags,
-              })),
-              ...main_segment.map((drill) => ({
-                id: drill.id,
-                name: drill.name,
-                focus: drill.focus,
-                duration: drill.duration,
-                segment: "main",
-                tags: drill.tags,
-              })),
-              ...cool_down.map((drill) => ({
-                id: drill.id,
-                name: drill.name,
-                focus: drill.focus,
-                duration: drill.duration,
-                segment: "cooldown",
-                tags: drill.tags,
-              })),
-            ],
-          });
+          const explainWhyMap = await generateDrillExplainWhys(
+            {
+              coachRequirements,
+              teamProfileSummary,
+              drills: [
+                ...warmup.map((drill) => ({
+                  id: drill.id,
+                  name: drill.name,
+                  focus: drill.focus,
+                  duration: drill.duration,
+                  segment: "warmup",
+                  tags: drill.tags,
+                })),
+                ...main_segment.map((drill) => ({
+                  id: drill.id,
+                  name: drill.name,
+                  focus: drill.focus,
+                  duration: drill.duration,
+                  segment: "main",
+                  tags: drill.tags,
+                })),
+                ...cool_down.map((drill) => ({
+                  id: drill.id,
+                  name: drill.name,
+                  focus: drill.focus,
+                  duration: drill.duration,
+                  segment: "cooldown",
+                  tags: drill.tags,
+                })),
+              ],
+            },
+            { signal: abortController.signal }
+          );
           if (!isActiveGeneration()) return;
 
           const applyExplainWhy = (drills: Drill[]) =>
@@ -938,6 +999,9 @@ const AutoPlan = () => {
     } finally {
       if (isActiveGeneration()) {
         setIsGenerating(false);
+      }
+      if (generationAbortControllerRef.current === abortController) {
+        generationAbortControllerRef.current = null;
       }
     }
   };
@@ -974,7 +1038,7 @@ const AutoPlan = () => {
   }, [currentTeam?.id, duration, generatedPlan, navigate, practiceTitle, user]);
 
   const isGeneratedPlanBottomActionVisible =
-    Boolean(generatedPlan) && location.pathname === "/";
+    Boolean(generatedPlan) && !isGeneratedPlanExportView && location.pathname === "/";
 
   useEffect(() => {
     return registerMobileBottomAction(
@@ -1008,6 +1072,64 @@ const AutoPlan = () => {
     1,
     Math.ceil(((100 - generationProgress) / 100) * (GENERATION_ESTIMATE_MS / 1000))
   );
+
+  const practiceExportDay = formatPracticeExportDate(practiceExportDateRef.current);
+  const practiceExportMonthDate = formatPracticeExportMonthDate(practiceExportDateRef.current);
+  const practiceExportTitle = practiceTitle.trim() || practiceExportDay;
+  const practiceExportDescription =
+    generatedPlan?.coach_notes.trim() || "No practice description added.";
+  const practiceExportIntensity = formatPracticeExportIntensity(practiceDefaults.intensityPreference);
+
+  const practiceExportShareText = useMemo(
+    () =>
+      [
+        practiceExportTitle,
+        `${practiceExportDay}, ${practiceExportMonthDate}`,
+        "",
+        practiceExportDescription,
+        "",
+        `Practice Length: ${duration} minutes`,
+        `Focus Intensity: ${practiceExportIntensity}`,
+      ].join("\n"),
+    [
+      duration,
+      practiceExportDay,
+      practiceExportDescription,
+      practiceExportIntensity,
+      practiceExportMonthDate,
+      practiceExportTitle,
+    ]
+  );
+
+  const handlePrintPracticePlan = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.print();
+  }, []);
+
+  const handleDownloadPracticePdf = useCallback(() => {
+    toast.info("Choose Save as PDF in the print dialog.");
+    handlePrintPracticePlan();
+  }, [handlePrintPracticePlan]);
+
+  const handleSharePracticePlan = useCallback(async () => {
+    if (typeof navigator === "undefined") return;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: practiceExportTitle,
+          text: practiceExportShareText,
+        });
+        return;
+      }
+
+      await navigator.clipboard?.writeText(practiceExportShareText);
+      toast.success("Practice plan copied to clipboard.");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast.error("Unable to share practice plan.");
+    }
+  }, [practiceExportShareText, practiceExportTitle]);
 
   const generationOverlay =
     isGenerating && typeof document !== "undefined"
@@ -1124,6 +1246,116 @@ const AutoPlan = () => {
   }
 
   if (generatedPlan) {
+    if (isGeneratedPlanExportView) {
+      return (
+        <div className="space-y-5 pb-6">
+          <div>
+            <h1 className="text-[2.85rem] font-bold leading-none tracking-normal sm:text-5xl">
+              {practiceExportTitle}
+            </h1>
+            <div className="mt-6 h-px w-full bg-border/80" />
+          </div>
+
+          <button
+            type="button"
+            className="grid w-full grid-cols-[4.25rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-[1.35rem] border border-white/10 bg-card/70 px-4 py-4 text-left shadow-sm shadow-black/10 backdrop-blur transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label="Practice date"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.14)]">
+              <CalendarDays className="h-7 w-7" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[1.65rem] font-bold leading-tight">
+                {practiceExportDay}
+              </span>
+              <span className="block text-[1.35rem] leading-tight text-muted-foreground">
+                {practiceExportMonthDate}
+              </span>
+            </span>
+            <ChevronRight className="h-7 w-7 text-muted-foreground" />
+          </button>
+
+          <section className="grid w-full grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-[1.35rem] border border-white/10 bg-card/70 px-4 py-5 shadow-sm shadow-black/10 backdrop-blur">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.14)]">
+              <FileText className="h-7 w-7" />
+            </span>
+            <div className="min-w-0 space-y-2">
+              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-primary">
+                PRACTICE DESCRIPTION
+              </h2>
+              <p className="text-[1.45rem] leading-[1.55] text-foreground">
+                {practiceExportDescription}
+              </p>
+            </div>
+          </section>
+
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handlePrintPracticePlan}
+              className="grid min-h-[5.25rem] w-full grid-cols-[4.25rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-[1.35rem] border-2 border-primary/85 bg-card/55 px-4 py-4 text-left shadow-sm shadow-primary/10 backdrop-blur transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.14)]">
+                <Printer className="h-7 w-7" />
+              </span>
+              <span className="truncate text-[1.65rem] font-bold leading-tight">Print</span>
+              <ChevronRight className="h-7 w-7 text-muted-foreground" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadPracticePdf}
+              className="grid min-h-[5.25rem] w-full grid-cols-[4.25rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-[1.35rem] border-2 border-primary/85 bg-card/55 px-4 py-4 text-left shadow-sm shadow-primary/10 backdrop-blur transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary/15 text-secondary shadow-[inset_0_0_0_1px_hsl(var(--secondary)/0.18)]">
+                <FileDown className="h-7 w-7" />
+              </span>
+              <span className="truncate text-[1.65rem] font-bold leading-tight">Download PDF</span>
+              <ChevronRight className="h-7 w-7 text-muted-foreground" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSharePracticePlan}
+              className="grid min-h-[5.25rem] w-full grid-cols-[4.25rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-[1.35rem] border-2 border-primary/85 bg-card/55 px-4 py-4 text-left shadow-sm shadow-primary/10 backdrop-blur transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.14)]">
+                <Share2 className="h-7 w-7" />
+              </span>
+              <span className="truncate text-[1.65rem] font-bold leading-tight">Share</span>
+              <ChevronRight className="h-7 w-7 text-muted-foreground" />
+            </button>
+          </div>
+
+          <section className="grid grid-cols-[1fr_auto_1fr] items-center rounded-[1.35rem] border border-white/10 bg-card/55 px-4 py-4 shadow-sm shadow-black/10 backdrop-blur">
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
+              <Clock3 className="h-10 w-10 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="truncate text-[1.15rem] leading-tight text-muted-foreground">
+                  Practice Length
+                </p>
+                <p className="truncate text-[1.35rem] font-bold leading-tight text-primary">
+                  {duration} minutes
+                </p>
+              </div>
+            </div>
+            <div className="mx-4 h-14 w-px bg-border" />
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
+              <Gauge className="h-9 w-9 text-secondary" />
+              <div className="min-w-0">
+                <p className="truncate text-[1.15rem] leading-tight text-muted-foreground">
+                  Focus Intensity
+                </p>
+                <p className="truncate text-[1.35rem] font-bold capitalize leading-tight text-secondary">
+                  {practiceExportIntensity}
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-5 sm:space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1173,6 +1405,7 @@ const AutoPlan = () => {
                 setPracticeTitle("");
                 setPracticeTitleEditValue("");
                 setIsEditingPracticeTitle(false);
+                setIsGeneratedPlanExportView(false);
                 if (typeof window !== "undefined") {
                   window.sessionStorage.removeItem(GENERATED_PLAN_TITLE_STORAGE_KEY);
                 }              
@@ -1181,7 +1414,12 @@ const AutoPlan = () => {
               <PlusCircle className="h-4 w-4" />
               Create New Plan
             </Button>
-            <Button type="button" variant="outline" className="h-11 w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full sm:w-auto"
+              onClick={() => setIsGeneratedPlanExportView(true)}
+            >
               <Download className="h-4 w-4" />
               Export
             </Button>
@@ -1190,6 +1428,7 @@ const AutoPlan = () => {
 
         <GeneratedPlan
           plan={generatedPlan}
+          onReorder={handleGeneratedPlanReorder}
           onViewDrill={(drillId) => {
             navigate(`/drill/${drillId}`, { state: { fromAutoPlan: true } });
           }}

@@ -28,7 +28,7 @@ test("mobile css protects small native form controls without targeting large con
 test("AutoPlan search input keeps focus feedback without focus-time scaling", () => {
   const autoPlanSource = readFileSync(new URL("../../pages/AutoPlan.tsx", import.meta.url), "utf8");
   const searchInputClass = autoPlanSource.match(
-    /className="([^"]*hover:border-primary\/40[^"]*)"/,
+    /placeholder="What should we work on today\?"[\s\S]*?className="([^"]*hover:border-primary\/40[^"]*)"/,
   )?.[1];
 
   assert.ok(searchInputClass, "AutoPlan search input class should be found");

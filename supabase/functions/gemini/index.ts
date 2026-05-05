@@ -122,6 +122,10 @@ const createAuthedSupabaseClient = (authorization: string) => {
   });
 };
 
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+
+const getGeminiModelName = () => Deno.env.get("GEMINI_MODEL")?.trim() || DEFAULT_GEMINI_MODEL;
+
 const getModel = () => {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) {
@@ -131,16 +135,16 @@ const getModel = () => {
     });
   }
 
-  return new GoogleGenerativeAI(apiKey).getGenerativeModel({ model: "gemini-2.5-flash" });
+  return new GoogleGenerativeAI(apiKey).getGenerativeModel({ model: getGeminiModelName() });
 };
 
-const generateContentJson = async (prompt: string) => {
-  const result = await getModel().generateContent(prompt);
+const generateContentJson = async (prompt: string, signal?: AbortSignal) => {
+  const result = await getModel().generateContent(prompt, { signal });
   const response = await result.response;
   return parseGeminiJson(response.text());
 };
 
-const handleParseSearchIntent = async (payload: unknown) => {
+const handleParseSearchIntent = async (payload: unknown, signal?: AbortSignal) => {
   const searchText = (payload as { searchText?: string }).searchText ?? "";
   const prompt = `You are helping a basketball coach quickly set up a practice session.
 Input: "${searchText}"
@@ -157,7 +161,7 @@ Rules:
 - If you aren't confident about a field, omit it rather than guessing.
 - Keep goals short and actionable.`;
 
-  const parsed = await generateContentJson(prompt);
+  const parsed = await generateContentJson(prompt, signal);
 
   if (!parsed || !Array.isArray(parsed.focus) || typeof parsed.goals !== "string") {
     throw new Error("Invalid intent response format from Gemini");
@@ -166,7 +170,7 @@ Rules:
   return parsed;
 };
 
-const handleSummarizeIntentForPlanning = async (payload: unknown) => {
+const handleSummarizeIntentForPlanning = async (payload: unknown, signal?: AbortSignal) => {
   const searchText = (payload as { searchText?: string }).searchText ?? "";
   const prompt = `You are helping a basketball coach quickly set up a practice session.
 Input: "${searchText}"
@@ -186,7 +190,7 @@ Rules:
 - Keep suggested_goals actionable and specific to the input.
 - drill_keywords should be specific basketball terms that match drill tags/names.`;
 
-  const parsed = await generateContentJson(prompt);
+  const parsed = await generateContentJson(prompt, signal);
 
   if (!parsed || typeof parsed.primary_focus !== "string" || typeof parsed.suggested_goals !== "string") {
     throw new Error("Invalid planning intent response format from Gemini");
@@ -302,7 +306,11 @@ ${weakest.map(formatOutcome).join("\n")}
 `;
 };
 
-const handleGeneratePracticePlan = async (payload: unknown, authorization: string) => {
+const handleGeneratePracticePlan = async (
+  payload: unknown,
+  authorization: string,
+  signal?: AbortSignal
+) => {
   const { coachRequirements, availableDrills, preferredDrillIds } = payload as GeneratePracticePlanPayload;
 
   if (!availableDrills || availableDrills.length === 0) {
@@ -362,7 +370,7 @@ Required JSON structure:
   "coach_notes": "Brief explanation of the plan strategy"
 }`;
 
-  const parsed = await generateContentJson(prompt);
+  const parsed = await generateContentJson(prompt, signal);
 
   if (!parsed.warmup || !parsed.main_segment || !parsed.cool_down) {
     throw new Error("Invalid response format from AI");
@@ -371,7 +379,7 @@ Required JSON structure:
   return parsed;
 };
 
-const handleGenerateDrillExplainWhys = async (payload: unknown) => {
+const handleGenerateDrillExplainWhys = async (payload: unknown, signal?: AbortSignal) => {
   const params = payload as GenerateDrillExplainWhysPayload;
   if (!params.drills.length) return {};
 
@@ -414,7 +422,7 @@ Rules:
 Example output:
 {"drill_id_1":"Sentence here.","drill_id_2":"Sentence here."}`;
 
-  const parsed = await generateContentJson(prompt);
+  const parsed = await generateContentJson(prompt, signal);
 
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Invalid explain-why response format from Gemini");
@@ -442,13 +450,13 @@ serve(async (req) => {
 
     switch (action) {
       case "generatePracticePlan":
-        return jsonResponse(await handleGeneratePracticePlan(payload, authorization));
+        return jsonResponse(await handleGeneratePracticePlan(payload, authorization, req.signal));
       case "generateDrillExplainWhys":
-        return jsonResponse(await handleGenerateDrillExplainWhys(payload));
+        return jsonResponse(await handleGenerateDrillExplainWhys(payload, req.signal));
       case "summarizeIntentForPlanning":
-        return jsonResponse(await handleSummarizeIntentForPlanning(payload));
+        return jsonResponse(await handleSummarizeIntentForPlanning(payload, req.signal));
       case "parseSearchIntent":
-        return jsonResponse(await handleParseSearchIntent(payload));
+        return jsonResponse(await handleParseSearchIntent(payload, req.signal));
       default:
         return jsonResponse({ error: "Invalid Gemini action.", code: "invalid_action" }, 400);
     }
