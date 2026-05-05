@@ -2,7 +2,7 @@ import { supabase } from "../integrations/supabase/client";
 import type { TeamProfileSummary } from "@/lib/planning/teamProfile";
 import type { IntensityPreference } from "@/types";
 import { createGeminiFunctionCaller } from "./geminiFunctionClient";
-import type { GeminiAction } from "./geminiFunctionClient";
+import type { GeminiAction, GeminiFunctionCallOptions } from "./geminiFunctionClient";
 
 export const callGeminiFunction = createGeminiFunctionCaller(
   supabase.functions.invoke.bind(supabase.functions)
@@ -57,7 +57,8 @@ export async function parseSearchIntent(searchText: string): Promise<PracticeInt
 export async function generatePracticePlan(
   coachRequirements: CoachRequirements,
   availableDrills: DrillData[],
-  preferredDrillIds?: string[]
+  preferredDrillIds?: string[],
+  options: GeminiFunctionCallOptions = {}
 ) {
   try {
     if (!availableDrills || availableDrills.length === 0) {
@@ -68,7 +69,7 @@ export async function generatePracticePlan(
       coachRequirements,
       availableDrills,
       preferredDrillIds,
-    });
+    }, options);
   } catch (error) {
     console.error("Error in generatePracticePlan:", error);
     throw error;
@@ -86,11 +87,15 @@ export async function generateDrillExplainWhys(params: {
     segment?: string;
     tags?: string[];
   }>;
-}): Promise<Record<string, string>> {
+}, options: GeminiFunctionCallOptions = {}): Promise<Record<string, string>> {
   if (!params.drills.length) return {};
 
   try {
-    return await callGeminiFunction<Record<string, string>>("generateDrillExplainWhys", params);
+    return await callGeminiFunction<Record<string, string>>(
+      "generateDrillExplainWhys",
+      params,
+      options
+    );
   } catch (error) {
     console.error("Error generating drill explain-why text:", error);
     return {};

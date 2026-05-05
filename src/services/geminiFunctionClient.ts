@@ -21,8 +21,12 @@ type InvokeResult<T> = {
 
 type InvokeGeminiFunction = <T>(
   name: string,
-  options: { body: GeminiFunctionRequest }
+  options: { body: GeminiFunctionRequest; signal?: AbortSignal }
 ) => Promise<InvokeResult<T>>;
+
+export type GeminiFunctionCallOptions = {
+  signal?: AbortSignal;
+};
 
 const getErrorMessage = async (error: unknown) => {
   const fallback = error instanceof Error ? error.message : "Gemini request failed.";
@@ -42,9 +46,14 @@ const getErrorMessage = async (error: unknown) => {
 
 export const createGeminiFunctionCaller =
   (invoke: InvokeGeminiFunction) =>
-  async <T>(action: GeminiAction, payload: unknown): Promise<T> => {
+  async <T>(
+    action: GeminiAction,
+    payload: unknown,
+    options: GeminiFunctionCallOptions = {}
+  ): Promise<T> => {
     const { data, error } = await invoke<T>("gemini", {
       body: { action, payload },
+      signal: options.signal,
     });
 
     if (error) {
