@@ -122,7 +122,7 @@ const createAuthedSupabaseClient = (authorization: string) => {
   });
 };
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
 
 const getGeminiModelName = () => Deno.env.get("GEMINI_MODEL")?.trim() || DEFAULT_GEMINI_MODEL;
 
@@ -146,7 +146,7 @@ const generateContentJson = async (prompt: string, signal?: AbortSignal) => {
 
 const handleParseSearchIntent = async (payload: unknown, signal?: AbortSignal) => {
   const searchText = (payload as { searchText?: string }).searchText ?? "";
-  const prompt = `You are helping a basketball coach quickly set up a practice session.
+  const prompt = `You are helping a basketball coach set up a comprehensive practice session.
 Input: "${searchText}"
 
 Extract the coach's intent as JSON with the following shape:
