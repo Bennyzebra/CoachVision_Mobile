@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
 import {
   Play,
   Pause,
@@ -14,12 +12,50 @@ import {
   Star,
   CheckCircle2,
   Square,
- SkipForward,
-  Zap, 
+  Zap,
+  PencilLine,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  ThumbsDown,
+  ThumbsUp,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getPractice, updatePracticeFeedback, Practice, PracticeDrillOutcome } from "@/services/practiceService";
-type SlideState = "idle" | "sliding-out" | "sliding-in";
+import { getPractice, Practice } from "@/services/practiceService";
+import { useMobileBottomAction } from "@/components/MobileBottomActionContext";
+import { cn } from "@/lib/utils";
+type SlideState = "idle" | "next-exit" | "next-enter" | "previous-exit" | "previous-enter";
+type OverallEngagement = "low" | "ok" | "high";
+type DrillEngagement = "low" | "ok" | "great";
+type DrillQuickRating = "down" | "up";
+type DrillFeedbackState = {
+  quickRating: DrillQuickRating | null;
+  engagement: DrillEngagement | null;
+  note: string;
+};
+
+const overallEngagementOptions: Array<{ value: OverallEngagement; label: string }> = [
+  { value: "low", label: "Low" },
+  { value: "ok", label: "OK" },
+  { value: "high", label: "High" },
+];
+
+const drillEngagementOptions: Array<{ value: DrillEngagement; label: string }> = [
+  { value: "low", label: "Low" },
+  { value: "ok", label: "OK" },
+  { value: "great", label: "Great" },
+];
+
+const PRACTICE_TITLE_FONT_SIZE_REM = 2;
+const DEFAULT_DRILL_TITLE_FONT_SIZE_REM = 2.8;
+const TIMER_SYNC_TOLERANCE_MS = 20;
+
+type DrillTitleFit = {
+  fontSizeRem: number;
+  shouldWrap: boolean;
+};
 
 const calculatePlanDuration = (planDetails: Practice["plan_details"]) => {
   const sumDurations = (drills: Practice["plan_details"][keyof Practice["plan_details"]]) =>
@@ -32,13 +68,88 @@ const calculatePlanDuration = (planDetails: Practice["plan_details"]) => {
   );
 };
 
-type TimerMode = "total" | "drill";
-
 const buildDrillSequence = (planDetails: Practice["plan_details"]) => [
   ...planDetails.warmup.map((drill) => ({ ...drill, segment: "Warmup" })),
   ...planDetails.main_segment.map((drill) => ({ ...drill, segment: "Main Segment" })),
   ...planDetails.cool_down.map((drill) => ({ ...drill, segment: "Cool Down" })),
 ];
+
+const formatTimer = (totalSeconds: number) => {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+};
+
+const formatElapsedClock = (totalMilliseconds: number) => {
+  const safeMilliseconds = Math.max(0, Math.floor(totalMilliseconds));
+  const minutes = Math.floor(safeMilliseconds / 60000);
+  const seconds = Math.floor((safeMilliseconds % 60000) / 1000);
+  const centiseconds = Math.floor((safeMilliseconds % 1000) / 10);
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}:${String(centiseconds).padStart(2, "0")}`;
+};
+
+const formatPracticeDisplayTitle = (practice: Practice) => {
+  return practice.title?.trim() || "Practice";
+};
+
+const getMeasuredDrillTitleFit = (availableWidthPx: number, measuredWidthPx: number): DrillTitleFit => {
+  if (availableWidthPx <= 0 || measuredWidthPx <= 0) {
+    return {
+      fontSizeRem: DEFAULT_DRILL_TITLE_FONT_SIZE_REM,
+      shouldWrap: false,
+    };
+  }
+
+  const fitRatio = availableWidthPx / measuredWidthPx;
+  const fittedFontSizeRem = DEFAULT_DRILL_TITLE_FONT_SIZE_REM * fitRatio;
+  const nextFontSizeRem = Math.max(
+    PRACTICE_TITLE_FONT_SIZE_REM,
+    Math.min(DEFAULT_DRILL_TITLE_FONT_SIZE_REM, fittedFontSizeRem)
+  );
+  const shouldWrap = nextFontSizeRem <= PRACTICE_TITLE_FONT_SIZE_REM && measuredWidthPx > availableWidthPx;
+
+  return {
+    fontSizeRem: Number(nextFontSizeRem.toFixed(2)),
+    shouldWrap,
+  };
+};
+
+const formatSegmentLabel = (segment?: string) => {
+  if (segment === "Warmup") return "Warm-up";
+  return segment || "Drill";
+};
+
+const formatFocusLabel = (focus?: string) => {
+  if (!focus) return "Focus";
+  return focus
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+type FeedbackDrill = ReturnType<typeof buildDrillSequence>[number];
+type SegmentedFeedbackDrill = {
+  segment: string;
+  drills: Array<{ drill: FeedbackDrill; index: number; key: string }>;
+};
+
+const getSegmentedFeedbackDrills = (drills: FeedbackDrill[]): SegmentedFeedbackDrill[] => {
+  return drills.reduce<SegmentedFeedbackDrill[]>((segments, drill, index) => {
+    const key = `${drill.id}-${index}`;
+    const currentSegment = segments[segments.length - 1];
+
+    if (!currentSegment || currentSegment.segment !== drill.segment) {
+      segments.push({ segment: drill.segment, drills: [{ drill, index, key }] });
+      return segments;
+    }
+
+    currentSegment.drills.push({ drill, index, key });
+    return segments;
+  }, []);
+};
 
 const isValidPracticePayload = (value: unknown): value is Practice => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -59,29 +170,44 @@ const RunPractice = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const practiceId = searchParams.get("practiceId");
+  const { registerMobileBottomAction } = useMobileBottomAction();
 
   const [practice, setPractice] = useState<Practice | null>(null);
   const [loading, setLoading] = useState(true);
   const [totalTimeRemaining, setTotalTimeRemaining] = useState(0);
+  const [elapsedPracticeMilliseconds, setElapsedPracticeMilliseconds] = useState(0);
   const [drillTimeRemaining, setDrillTimeRemaining] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [currentDrillIndex, setCurrentDrillIndex] = useState(0);
-  const [timerMode, setTimerMode] = useState<TimerMode>("total");
-  const [feedbackRating, setFeedbackRating] = useState(5);
-  const [feedbackNotes, setFeedbackNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [isDrillDetailsOpen, setIsDrillDetailsOpen] = useState(false);
+  const [isNextPreviewOpen, setIsNextPreviewOpen] = useState(false);
+  const [overallStarRating, setOverallStarRating] = useState(4);
+  const [overallEngagement, setOverallEngagement] = useState<OverallEngagement | null>("high");
+  const [isOverallNoteOpen, setIsOverallNoteOpen] = useState(false);
+  const [overallNote, setOverallNote] = useState("");
+  const [expandedDrillKey, setExpandedDrillKey] = useState<string | null>(null);
+  const [drillFeedbackByKey, setDrillFeedbackByKey] = useState<Record<string, DrillFeedbackState>>({});
   const [slideState, setSlideState] = useState<SlideState>("idle");
   const [isAnimating, setIsAnimating] = useState(false);
   const [timeSaved, setTimeSaved] = useState(0);
   const [showTimeSavedToast, setShowTimeSavedToast] = useState(false);
   const [lastSkipSaved, setLastSkipSaved] = useState(0);
- const [skippedDrillFills, setSkippedDrillFills] = useState<Map<number, number>>(new Map());
+  const [skippedDrillFills, setSkippedDrillFills] = useState<Map<number, number>>(new Map());
   const [timeBehind, setTimeBehind] = useState(0);
   const [showTimeBehindToast, setShowTimeBehindToast] = useState(false);
   const [lastOvertimeUsed, setLastOvertimeUsed] = useState(0);
   const [currentDrillOvertime, setCurrentDrillOvertime] = useState(0);  
+  const [drillTitleFit, setDrillTitleFit] = useState<DrillTitleFit>({
+    fontSizeRem: DEFAULT_DRILL_TITLE_FONT_SIZE_REM,
+    shouldWrap: false,
+  });
   const feedbackRef = useRef<HTMLDivElement | null>(null);
+  const drillTitleContainerRef = useRef<HTMLDivElement | null>(null);
+  const drillTitleMeasureRef = useRef<HTMLSpanElement | null>(null);
+  const elapsedPracticeMillisecondsRef = useRef(0);
+  const drillTimeRemainingMillisecondsRef = useRef(0);
+  const currentDrillOvertimeMillisecondsRef = useRef(0);
   useEffect(() => {
     if (!practiceId) {
       toast.error("No practice ID provided");
@@ -120,46 +246,82 @@ const RunPractice = () => {
     if (!practice) return [];
     return buildDrillSequence(practice.plan_details);
   }, [practice]);
+
+  const segmentedFeedbackDrills = useMemo(
+    () => getSegmentedFeedbackDrills(drillSequence),
+    [drillSequence]
+  );
   
   const planDurationMinutes = practice ? calculatePlanDuration(practice.plan_details) : 0;
   const totalDurationMinutes = planDurationMinutes || practice?.duration || 0;
   const totalDurationSeconds = totalDurationMinutes * 60;
+  const totalDurationMilliseconds = totalDurationSeconds * 1000;
 
   useEffect(() => {
     if (!practice) return;
 
     const durationToUse = totalDurationMinutes || Number(practice.duration) || 0;
     const firstDrillDuration = drillSequence[0]?.duration || 0;
+    const firstDrillDurationMilliseconds = firstDrillDuration * 60 * 1000;
 
     setTotalTimeRemaining(durationToUse * 60);
+    elapsedPracticeMillisecondsRef.current = 0;
+    drillTimeRemainingMillisecondsRef.current = firstDrillDurationMilliseconds;
+    currentDrillOvertimeMillisecondsRef.current = 0;
+    setElapsedPracticeMilliseconds(0);
     setCurrentDrillIndex(0);
     setDrillTimeRemaining(firstDrillDuration * 60);
+    setIsDrillDetailsOpen(false);
+    setIsNextPreviewOpen(false);
   }, [practice, drillSequence, totalDurationMinutes]);
 
   useEffect(() => {
     if (!isRunning) return;
-    const timer = setInterval(() => {
-      setTotalTimeRemaining((prev) => {
-        if (prev <= 1) {
-          setIsRunning(false);
-          return 0;
-        }
-        return prev - 1;
-      });
 
-      setDrillTimeRemaining((prev) => {
-        if (drillSequence.length === 0) return prev;
-        if (prev <= 1) {
-          // Drill timer is at 0, track overtime
-          setCurrentDrillOvertime((overtime) => overtime + 1);
-          return 0;
+    const startedAt = performance.now() - elapsedPracticeMillisecondsRef.current;
+    const updateSynchronizedPracticeTimers = () => {
+      const nextElapsed = Math.min(
+        totalDurationMilliseconds,
+        Math.max(0, performance.now() - startedAt)
+      );
+      const elapsedDeltaMilliseconds = nextElapsed - elapsedPracticeMillisecondsRef.current;
+
+      if (elapsedDeltaMilliseconds < 0) return;
+
+      elapsedPracticeMillisecondsRef.current = nextElapsed;
+      setElapsedPracticeMilliseconds(nextElapsed);
+
+      const nextTotalRemainingMilliseconds = Math.max(0, totalDurationMilliseconds - nextElapsed);
+      setTotalTimeRemaining(Math.ceil(nextTotalRemainingMilliseconds / 1000));
+
+      if (drillSequence.length > 0) {
+        const nextDrillRemainingMilliseconds =
+          drillTimeRemainingMillisecondsRef.current - elapsedDeltaMilliseconds;
+
+        if (nextDrillRemainingMilliseconds <= TIMER_SYNC_TOLERANCE_MS) {
+          currentDrillOvertimeMillisecondsRef.current += Math.max(0, -nextDrillRemainingMilliseconds);
+          drillTimeRemainingMillisecondsRef.current = 0;
+          setDrillTimeRemaining(0);
+          setCurrentDrillOvertime(Math.floor(currentDrillOvertimeMillisecondsRef.current / 1000));
+        } else {
+          drillTimeRemainingMillisecondsRef.current = nextDrillRemainingMilliseconds;
+          setDrillTimeRemaining(Math.ceil(nextDrillRemainingMilliseconds / 1000));
         }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [isRunning, drillSequence.length]);
+      }
+
+      if (nextTotalRemainingMilliseconds <= TIMER_SYNC_TOLERANCE_MS) {
+        elapsedPracticeMillisecondsRef.current = totalDurationMilliseconds;
+        setElapsedPracticeMilliseconds(totalDurationMilliseconds);
+        setTotalTimeRemaining(0);
+        setIsRunning(false);
+      }
+    };
+
+    updateSynchronizedPracticeTimers();
+    const timer = window.setInterval(updateSynchronizedPracticeTimers, 10);
+
+    return () => window.clearInterval(timer);
+  }, [drillSequence.length, isRunning, totalDurationMilliseconds]);
 
   useEffect(() => {
     if (totalTimeRemaining > 0 && showFeedback) {
@@ -178,64 +340,54 @@ const RunPractice = () => {
   const handleEndTimer = () => {
     setIsRunning(false);
     setTotalTimeRemaining(0);
+    elapsedPracticeMillisecondsRef.current = totalDurationSeconds * 1000;
+    drillTimeRemainingMillisecondsRef.current = 0;
+    currentDrillOvertimeMillisecondsRef.current = 0;
+    setElapsedPracticeMilliseconds(totalDurationSeconds * 1000);
     handleShowFeedback();
     setDrillTimeRemaining(0);    
   };
 
-  const handleSubmitFeedback = async () => {
-    const buildDrillOutcomes = (): PracticeDrillOutcome[] => {
-      if (!practice) return [];
-      return drillSequence.map((drill, index) => {
-        const drillDurationSeconds = (drill.duration || 0) * 60;
-        let completionPercent = 0;
-        const wasSkipped = skippedDrillFills.has(index);
+  const handleToggleTimer = useCallback(() => {
+    if (totalTimeRemaining === 0) return;
+    setIsRunning((current) => !current);
+  }, [totalTimeRemaining]);
 
-        if (wasSkipped) {
-          completionPercent = skippedDrillFills.get(index) ?? 0;
-        } else if (index < currentDrillIndex) {
-          completionPercent = 100;
-        } else if (index === currentDrillIndex) {
-          const elapsedInDrill = Math.max(
-            0,
-            drillDurationSeconds - drillTimeRemaining + currentDrillOvertime
-          );
-          completionPercent = drillDurationSeconds > 0 ? (elapsedInDrill / drillDurationSeconds) * 100 : 0;
-        }
+  const handleResetPractice = useCallback(() => {
+    const firstDrillDurationMilliseconds = (drillSequence[0]?.duration || 0) * 60 * 1000;
+    setTotalTimeRemaining(totalDurationMinutes * 60);
+    elapsedPracticeMillisecondsRef.current = 0;
+    drillTimeRemainingMillisecondsRef.current = firstDrillDurationMilliseconds;
+    currentDrillOvertimeMillisecondsRef.current = 0;
+    setElapsedPracticeMilliseconds(0);
+    setCurrentDrillIndex(0);
+    setDrillTimeRemaining(Math.ceil(firstDrillDurationMilliseconds / 1000));
+    setIsRunning(false);
+    setTimeSaved(0);
+    setShowTimeSavedToast(false);
+    setSkippedDrillFills(new Map());
+    setTimeBehind(0);
+    setShowTimeBehindToast(false);
+    setCurrentDrillOvertime(0);
+    setIsDrillDetailsOpen(false);
+    setIsNextPreviewOpen(false);
+  }, [drillSequence, totalDurationMinutes]);
 
-        return {
-          drillId: drill.id,
-          completionPercent: Math.max(0, Math.min(100, completionPercent)),
-          feedbackRating: feedbackRating,
-          feedbackNotes: feedbackNotes.trim() ? feedbackNotes.trim() : null,
-        };
-      });
-    };
-    
-    if (!practiceId) return;
+  const updateDrillFeedback = (key: string, updates: Partial<DrillFeedbackState>) => {
+    setDrillFeedbackByKey((current) => {
+      const previous = current[key] ?? { quickRating: null, engagement: null, note: "" };
+      return {
+        ...current,
+        [key]: {
+          ...previous,
+          ...updates,
+        },
+      };
+    });
+  };
 
-    setIsSubmitting(true);
-
-    try {
-      const drillOutcomes = buildDrillOutcomes();
-      const { error } = await updatePracticeFeedback(      
-        practiceId,
-        feedbackRating,
-        feedbackNotes,
-        drillOutcomes
-      );
-      
-      if (error) throw error;
-
-      // Clear the autoplan so the user sees a fresh "ready to plan" state
-      window.sessionStorage.removeItem("coachvision-auto-plan-generated");      
-      toast.success("Feedback submitted successfully!");
-      navigate("/");
-    } catch (error) {
-      console.error("Error submitting feedback:", error);
-      toast.error("Failed to submit feedback. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleLocalFeedbackSave = () => {
+    toast.success("Feedback saved locally for now");
   };
 
  const handleNextDrill = useCallback(() => {
@@ -246,7 +398,7 @@ const RunPractice = () => {
     }
 
     // Calculate time saved from skipping this drill (ahead of schedule)
-    const timeRemainingOnDrill = drillTimeRemaining;
+    const timeRemainingOnDrill = Math.ceil(drillTimeRemainingMillisecondsRef.current / 1000);
     if (timeRemainingOnDrill > 0) {
       setTimeSaved((prev) => prev + timeRemainingOnDrill);
       setLastSkipSaved(timeRemainingOnDrill);
@@ -259,9 +411,10 @@ const RunPractice = () => {
     }
 
     // Calculate time lost from going over on this drill (behind schedule)
-    if (currentDrillOvertime > 0) {
-      setTimeBehind((prev) => prev + currentDrillOvertime);
-      setLastOvertimeUsed(currentDrillOvertime);
+    const currentDrillOvertimeSeconds = Math.floor(currentDrillOvertimeMillisecondsRef.current / 1000);
+    if (currentDrillOvertimeSeconds > 0) {
+      setTimeBehind((prev) => prev + currentDrillOvertimeSeconds);
+      setLastOvertimeUsed(currentDrillOvertimeSeconds);
       setShowTimeBehindToast(true);
       
       // Hide the toast after 3 seconds
@@ -270,9 +423,14 @@ const RunPractice = () => {
       }, 3000);
     }   
     // Record the fill percentage for the skipped drill so it persists
-    const drillDurationSeconds = (drillSequence[currentDrillIndex]?.duration || 0) * 60;
-    const elapsedInDrill = drillDurationSeconds - drillTimeRemaining + currentDrillOvertime;
-    const fillPercent = drillDurationSeconds > 0 ? (elapsedInDrill / drillDurationSeconds) * 100 : 0;
+    const drillDurationMilliseconds = (drillSequence[currentDrillIndex]?.duration || 0) * 60 * 1000;
+    const elapsedInDrillMilliseconds =
+      drillDurationMilliseconds -
+      drillTimeRemainingMillisecondsRef.current +
+      currentDrillOvertimeMillisecondsRef.current;
+    const fillPercent = drillDurationMilliseconds > 0
+      ? (elapsedInDrillMilliseconds / drillDurationMilliseconds) * 100
+      : 0;
     
     setSkippedDrillFills(prev => {
       const newMap = new Map(prev);
@@ -281,17 +439,21 @@ const RunPractice = () => {
     });
    
     setIsAnimating(true);
-    setSlideState("sliding-out");
+    setSlideState("next-exit");
 
     // Reset overtime for next drill
+    currentDrillOvertimeMillisecondsRef.current = 0;
     setCurrentDrillOvertime(0);
     // After slide-out animation completes, update drill and prepare for slide in
     setTimeout(() => {
       const nextIndex = currentDrillIndex + 1;
+      const nextDrillDurationMilliseconds = (drillSequence[nextIndex]?.duration || 0) * 60 * 1000;
       setCurrentDrillIndex(nextIndex);
-      setDrillTimeRemaining((drillSequence[nextIndex]?.duration || 0) * 60);
-      // Set to sliding-in to position content on the right
-      setSlideState("sliding-in");
+      drillTimeRemainingMillisecondsRef.current = nextDrillDurationMilliseconds;
+      setDrillTimeRemaining(Math.ceil(nextDrillDurationMilliseconds / 1000));
+      setIsDrillDetailsOpen(false);
+      setIsNextPreviewOpen(false);
+      setSlideState("next-enter");
 
       // Use requestAnimationFrame to ensure the DOM has updated with the new position
       // Then trigger the animation to slide into view
@@ -305,7 +467,155 @@ const RunPractice = () => {
         });
       });
     }, 300);
-  }, [drillSequence, currentDrillIndex, isAnimating, drillTimeRemaining, currentDrillOvertime]);
+  }, [drillSequence, currentDrillIndex, isAnimating]);
+
+  const handlePreviousDrill = useCallback(() => {
+    if (drillSequence.length === 0 || isAnimating || currentDrillIndex <= 0) return;
+
+    const previousIndex = currentDrillIndex - 1;
+    const previousDrillDurationMilliseconds = (drillSequence[previousIndex]?.duration || 0) * 60 * 1000;
+    setIsAnimating(true);
+    setSlideState("previous-exit");
+
+    setTimeout(() => {
+      setCurrentDrillIndex(previousIndex);
+      drillTimeRemainingMillisecondsRef.current = previousDrillDurationMilliseconds;
+      currentDrillOvertimeMillisecondsRef.current = 0;
+      setDrillTimeRemaining(Math.ceil(previousDrillDurationMilliseconds / 1000));
+      setCurrentDrillOvertime(0);
+      setIsDrillDetailsOpen(false);
+      setIsNextPreviewOpen(false);
+      setSlideState("previous-enter");
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setSlideState("idle");
+          setTimeout(() => {
+            setIsAnimating(false);
+          }, 300);
+        });
+      });
+    }, 300);
+  }, [currentDrillIndex, drillSequence, isAnimating]);
+
+  const practiceProgress = totalDurationMilliseconds
+    ? Math.max(0, Math.min(100, (elapsedPracticeMilliseconds / totalDurationMilliseconds) * 100))
+    : 0;
+  const currentDrill = drillSequence[currentDrillIndex];
+  const nextDrill = drillSequence[currentDrillIndex + 1];
+  const isCurrentDrillFinished = Boolean(currentDrill) && drillTimeRemaining === 0;
+  const hasNextDrill = currentDrillIndex < drillSequence.length - 1;
+  const finishedDrillActionLabel = hasNextDrill ? "Next drill" : "Finish practice";
+  const currentDrillName = currentDrill?.name || "No drills in this practice";
+  const isLastDrill =
+    drillSequence.length === 0 || currentDrillIndex >= drillSequence.length - 1;
+  const practiceDisplayTitle = practice ? formatPracticeDisplayTitle(practice) : "Practice";
+  const totalDurationLabel = `${totalDurationMinutes} min`;
+  const elapsedPracticeClock = formatElapsedClock(elapsedPracticeMilliseconds);
+  const drillRemainingLabel = `${formatTimer(drillTimeRemaining)} remaining`;
+  const currentDrillFocusLabel = formatFocusLabel(currentDrill?.focus);
+  const nextDrillFocusLabel = formatFocusLabel(nextDrill?.focus);
+  const isLiveContentScrollable = isDrillDetailsOpen || isNextPreviewOpen;
+
+  const fitDrillTitleToAvailableWidth = useCallback(() => {
+    const containerElement = drillTitleContainerRef.current;
+    const measureElement = drillTitleMeasureRef.current;
+
+    if (!containerElement || !measureElement) {
+      return;
+    }
+
+    const availableWidthPx = containerElement.clientWidth;
+    measureElement.style.fontSize = `${DEFAULT_DRILL_TITLE_FONT_SIZE_REM}rem`;
+    const measuredWidthPx = measureElement.scrollWidth;
+    const nextFit = getMeasuredDrillTitleFit(availableWidthPx, measuredWidthPx);
+
+    setDrillTitleFit((currentFit) =>
+      currentFit.fontSizeRem === nextFit.fontSizeRem && currentFit.shouldWrap === nextFit.shouldWrap
+        ? currentFit
+        : nextFit
+    );
+  }, [currentDrillName]);
+
+  useLayoutEffect(() => {
+    fitDrillTitleToAvailableWidth();
+
+    const containerElement = drillTitleContainerRef.current;
+    if (!containerElement) {
+      return;
+    }
+
+    let isMounted = true;
+    const resizeObserver = new ResizeObserver(fitDrillTitleToAvailableWidth);
+    resizeObserver.observe(containerElement);
+    document.fonts?.ready.then(() => {
+      if (isMounted) {
+        fitDrillTitleToAvailableWidth();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      resizeObserver.disconnect();
+    };
+  }, [fitDrillTitleToAvailableWidth, slideState]);
+
+  useEffect(() => {
+    if (loading || !practice || showFeedback) {
+      return registerMobileBottomAction(null);
+    }
+
+    const pauseResumeLabel = isRunning ? "Pause" : "Start";
+
+    return registerMobileBottomAction({
+      variant: "segmented",
+      active: true,
+      activeSegmentIndex: 1,
+      swipeEnabled: totalTimeRemaining > 0 && !isAnimating,
+      onSwipeLeftToRight: handleNextDrill,
+      onSwipeRightToLeft: handlePreviousDrill,
+      segments: [
+        {
+          id: "previous-drill",
+          label: "Previous",
+          compactLabel: "Prev",
+          icon: <ChevronLeft className="h-5 w-5" />,
+          disabled: currentDrillIndex === 0 || totalTimeRemaining === 0 || isAnimating,
+          onClick: handlePreviousDrill,
+        },
+        {
+          id: "timer-toggle",
+          label: pauseResumeLabel,
+          compactLabel: pauseResumeLabel,
+          icon: isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />,
+          primary: true,
+          disabled: totalTimeRemaining === 0,
+          onClick: handleToggleTimer,
+        },
+        {
+          id: "next-drill",
+          label: "Next",
+          compactLabel: "Next",
+          icon: <ChevronRight className="h-5 w-5" />,
+          disabled: isLastDrill || totalTimeRemaining === 0 || isAnimating,
+          onClick: handleNextDrill,
+        },
+      ],
+    });
+  }, [
+    currentDrillIndex,
+    handleNextDrill,
+    handlePreviousDrill,
+    handleToggleTimer,
+    isAnimating,
+    isLastDrill,
+    isRunning,
+    loading,
+    practice,
+    registerMobileBottomAction,
+    showFeedback,
+    totalTimeRemaining,
+  ]);
 
   if (loading) {
     return (
@@ -340,23 +650,13 @@ const RunPractice = () => {
   }
 
 
-  const practiceProgress = totalDurationSeconds
-    ? Math.min(100, ((totalDurationSeconds - totalTimeRemaining) / totalDurationSeconds) * 100)
-    : 0;
-
-  const currentDrill = drillSequence[currentDrillIndex];
-  const isLastDrill =
-    drillSequence.length === 0 || currentDrillIndex >= drillSequence.length - 1;  
-  const drillMinutes = Math.floor(drillTimeRemaining / 60);
-  const drillSeconds = drillTimeRemaining % 60;
-  const minutes = Math.floor(totalTimeRemaining / 60);
-  const seconds = totalTimeRemaining % 60;
-
   return (
-    <div className="mx-auto max-w-4xl space-y-5 sm:space-y-6">
-    
-
-      {/* Time Saved Toast Notification */}
+    <div
+      className={cn(
+        "mx-auto h-[calc(100dvh-var(--app-safe-area-top)-4.75rem-var(--app-safe-area-bottom))] max-w-md text-foreground",
+        isLiveContentScrollable ? "overflow-y-auto pb-2" : "overflow-hidden pb-0"
+      )}
+    >
       <div
         className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ease-out ${
           showTimeSavedToast
@@ -364,20 +664,19 @@ const RunPractice = () => {
             : "opacity-0 -translate-y-4 pointer-events-none"
         }`}
       >
-        <div className="bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3 animate-pulse">
-          <Zap className="h-5 w-5" />
+        <div className="flex items-center gap-2 rounded-full border border-green-500/40 bg-green-600 px-4 py-2 text-white shadow-sm">
+          <Zap className="h-4 w-4" />
           <div className="text-center">
-            <p className="font-bold text-lg">
+            <p className="text-sm font-semibold">
               +{Math.floor(lastSkipSaved / 60)}:{String(lastSkipSaved % 60).padStart(2, "0")} saved!
             </p>
-            <p className="text-sm text-green-100">
+            <p className="text-xs text-green-100">
               You're now {Math.floor(timeSaved / 60)}:{String(timeSaved % 60).padStart(2, "0")} ahead of schedule
             </p>
           </div>
         </div>
       </div>
 
-      {/* Time Behind Toast Notification */}
       <div
         className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ease-out ${
           showTimeBehindToast
@@ -385,435 +684,561 @@ const RunPractice = () => {
             : "opacity-0 -translate-y-4 pointer-events-none"
         }`}
       >
-        <div className="bg-red-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3 animate-pulse">
-          <Clock className="h-5 w-5" />
+        <div className="flex items-center gap-2 rounded-full border border-red-500/40 bg-red-600 px-4 py-2 text-white shadow-sm">
+          <Clock className="h-4 w-4" />
           <div className="text-center">
-            <p className="font-bold text-lg">
+            <p className="text-sm font-semibold">
               -{Math.floor(lastOvertimeUsed / 60)}:{String(lastOvertimeUsed % 60).padStart(2, "0")} overtime
             </p>
-            <p className="text-sm text-red-100">
+            <p className="text-xs text-red-100">
               You're now {Math.floor(timeBehind / 60)}:{String(timeBehind % 60).padStart(2, "0")} behind schedule
             </p>
           </div>
         </div>
       </div>
-      
-      <Card className="rounded-xl border-2">
-        <CardHeader className="border-b bg-muted/30 p-4 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              Practice
-            </CardTitle>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              {/* Ahead of Schedule Badge */}
-              {timeSaved > 0 && (
-                <Badge 
-                  className="gap-1.5 bg-green-600 text-sm font-semibold text-white animate-in fade-in duration-300 hover:bg-green-700 sm:text-base"
-                >
-                  <Zap className="h-4 w-4" />
-                  {Math.floor(timeSaved / 60)}:{String(timeSaved % 60).padStart(2, "0")} ahead
-                </Badge>
-              )}
-              {/* Behind Schedule Badge */}
-              {timeBehind > 0 && (
-                <Badge 
-                  className="gap-1.5 bg-red-600 text-sm font-semibold text-white animate-in fade-in duration-300 hover:bg-red-700 sm:text-base"
-                >
-                  <Clock className="h-4 w-4" />
-                  {Math.floor(timeBehind / 60)}:{String(timeBehind % 60).padStart(2, "0")} behind
-                </Badge>      
-              )}              
-              {drillSequence.length > 0 && (
-                <Badge variant="secondary" className="text-sm font-semibold sm:text-base">
-                  Drill {currentDrillIndex + 1} of {drillSequence.length}
-                </Badge>
-              )}
-              <Badge variant="outline" className="text-sm sm:text-base">
-                {totalDurationMinutes} minutes total
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6 p-4 sm:space-y-8 sm:p-8">
-          <div className="flex justify-center">
-            <div className="flex w-full items-center gap-2 rounded-full border border-primary/10 bg-primary/5 p-1 sm:w-auto">
-              <Button
-              size="sm"
-                variant={timerMode === "total" ? "default" : "ghost"}
-                className="h-10 flex-1 rounded-full sm:flex-none"
-                onClick={() => setTimerMode("total")}
-              >
-                Total Timer
-              </Button>
-              <Button
-                size="sm"
-                variant={timerMode === "drill" ? "default" : "ghost"}
-                className="h-10 flex-1 rounded-full sm:flex-none"
-                onClick={() => setTimerMode("drill")}
-              >
-                Drill-by-Drill
-              </Button>
-            </div>
+
+      <section>
+        <div>
+          <div className="grid min-h-[5.75rem] grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-border/70 pb-6 pt-4">
+            <h1 className="min-w-0 truncate text-[2rem] font-bold leading-tight tracking-normal">
+              {practiceDisplayTitle}
+            </h1>
+            <span className="text-[1.55rem] font-semibold leading-none text-muted-foreground">
+              {totalDurationLabel}
+            </span>
           </div>
 
-         <div className="space-y-4">
-            {/* Segmented Progress Bar with Glow Effect */}
-            <div 
-              className="relative rounded-full p-[3px] transition-all duration-700"
-              style={{
-                boxShadow: practiceProgress > 0 
-                  ? `0 0 ${Math.min(practiceProgress / 4, 20)}px ${Math.min(practiceProgress / 8, 10)}px rgba(0, 102, 204, ${Math.min(practiceProgress / 100 * 0.5, 0.4)}), 
-                     0 0 ${Math.min(practiceProgress / 2.5, 35)}px ${Math.min(practiceProgress / 5, 15)}px rgba(0, 102, 204, ${Math.min(practiceProgress / 100 * 0.25, 0.2)})`
-                  : 'inset 0 1px 3px rgba(0,0,0,0.1)',
-                background: practiceProgress > 0 
-                  ? `linear-gradient(90deg, 
-                      rgba(245, 158, 11, ${0.15 + Math.min(practiceProgress / 100 * 0.35, 0.35)}) 0%, 
-                      rgba(0, 102, 204, ${0.15 + Math.min(practiceProgress / 100 * 0.35, 0.35)}) 50%, 
-                      rgba(59, 130, 246, ${0.15 + Math.min(practiceProgress / 100 * 0.35, 0.35)}) 100%)`
-                  : 'linear-gradient(90deg, rgba(245, 158, 11, 0.1) 0%, rgba(0, 102, 204, 0.1) 50%, rgba(59, 130, 246, 0.1) 100%)'
-              }}
-            >
-              <div className="w-full h-4 rounded-full overflow-hidden flex bg-muted/50">
-                {drillSequence.map((drill, index) => {
+          <div
+            className="mt-5 h-2.5 overflow-hidden rounded-full bg-muted/70"
+            aria-label={`Practice ${Math.round(practiceProgress)}% complete`}
+          >
+            <div className="flex h-full w-full">
+              {drillSequence.length > 0 ? (
+                drillSequence.map((drill, index) => {
                   const drillDurationSeconds = (drill.duration || 0) * 60;
                   const drillWidthPercent = totalDurationSeconds > 0 
                     ? (drillDurationSeconds / totalDurationSeconds) * 100 
                     : 0;
-                  
-                  // Calculate fill percentage for this segment
-                  // Use skipped drill fills for drills that were skipped
+
                   let segmentFillPercent = 0;
-                  const wasSkipped = skippedDrillFills.has(index);
-                  
-                  if (wasSkipped) {
-                    // This drill was skipped - use the recorded fill percentage
-                    segmentFillPercent = skippedDrillFills.get(index)!;
-                  } else if (index < currentDrillIndex) {
-                    // Drill before current that wasn't skipped - fully completed
-                    segmentFillPercent = 100;
-                  } else if (index === currentDrillIndex) {
-                    // Current drill - calculate based on remaining time
-                    const elapsedInDrill = drillDurationSeconds - drillTimeRemaining;
-                    segmentFillPercent = drillDurationSeconds > 0 
-                      ? (elapsedInDrill / drillDurationSeconds) * 100 
-                      : 0;
-                  } else {
-                    // Future drill - not started yet
-                    segmentFillPercent = 0;
+                  if (index < currentDrillIndex) {
+                    segmentFillPercent = skippedDrillFills.get(index) ?? 100;
                   }
-                  
-                  // Determine segment colors based on segment type (muted for unfilled, saturated for filled)
-                  const getMutedBg = () => {
-                    if (drill.segment === "Warmup") return "bg-amber-500/20";
-                    if (drill.segment === "Cool Down") return "bg-purple-500/20";
-                    return "bg-primary/20";
-                  };
-                  
-                  const getSaturatedBg = () => {
-                    if (drill.segment === "Warmup") return "bg-amber-500";
-                    if (drill.segment === "Cool Down") return "bg-purple-500";
-                    return "bg-primary";
-                  };
-                  
-                  const isCurrentDrill = index === currentDrillIndex;
-                  const isCompleted = segmentFillPercent === 100;
+                  if (index === currentDrillIndex) {
+                    const drillDurationMilliseconds = drillDurationSeconds * 1000;
+                    const elapsedInDrillMilliseconds =
+                      drillDurationMilliseconds -
+                      drillTimeRemainingMillisecondsRef.current +
+                      currentDrillOvertimeMillisecondsRef.current;
+                    segmentFillPercent = drillDurationMilliseconds > 0
+                      ? (elapsedInDrillMilliseconds / drillDurationMilliseconds) * 100
+                      : 0;
+                  }
+
+                  const mutedClass =
+                    drill.segment === "Warmup"
+                      ? "bg-secondary/20"
+                      : drill.segment === "Cool Down"
+                        ? "bg-foreground/15"
+                        : "bg-primary/20";
+                  const fillClass =
+                    drill.segment === "Warmup"
+                      ? "bg-secondary"
+                      : drill.segment === "Cool Down"
+                        ? "bg-foreground/55"
+                        : "bg-primary";
                   
                   return (
                     <div
                       key={index}
-                      className={`relative h-full overflow-hidden ${getMutedBg()} ${
-                        index < drillSequence.length - 1 ? "border-r border-background/50" : ""
-                      }`}
+                      className={cn(
+                        "h-full overflow-hidden",
+                        mutedClass,
+                        index < drillSequence.length - 1 && "border-r border-background/80"
+                      )}
                       style={{ width: `${drillWidthPercent}%` }}
                       title={`${drill.name} (${drill.duration} min) - ${drill.segment}`}
                     >
-                      {/* Filled portion with full saturation */}
                       <div
-                        className={`absolute inset-0 h-full transition-all duration-500 ${getSaturatedBg()} ${
-                          isCurrentDrill && isRunning ? "animate-pulse" : ""
-                        } ${isCompleted ? "shadow-inner" : ""}`}
-                        style={{ 
-                          width: `${segmentFillPercent}%`,
-                          boxShadow: isCompleted 
-                            ? `inset 0 1px 2px rgba(255,255,255,0.3)` 
-                            : 'none'
-                        }}
+                        className={cn("h-full transition-all duration-500", fillClass)}
+                        style={{ width: `${Math.max(0, Math.min(100, segmentFillPercent))}%` }}
                       />
-                      {/* Leading edge indicator */}
-                      {isCurrentDrill && segmentFillPercent > 0 && segmentFillPercent < 100 && (
-                        <div 
-                          className="absolute top-0 h-full w-1 bg-white/90 shadow-lg"
-                          style={{ 
-                            left: `${segmentFillPercent}%`,
-                            boxShadow: '0 0 8px 2px rgba(255,255,255,0.6)'
-                          }}
-                        />
-                      )}
                     </div>
                   );
-                })}
-              </div>
+                })
+              ) : (
+                <div className="h-full bg-primary" style={{ width: `${practiceProgress}%` }} />
+              )}
             </div>
-            {/* Legend */}
-            <div className="flex justify-center gap-4 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-amber-500" />
-                <span>Warmup</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-primary" />
-                <span>Main</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-purple-500" />
-                <span>Cool Down</span>
-              </div>
-            </div>            
           </div>
+        </div>
 
-          {timerMode === "total" ? (
-            <div className="text-center space-y-6">
-              <div className="py-6">
-                <div
-                  className={`text-6xl font-bold tabular-nums drop-shadow-sm sm:text-8xl ${
-                    totalTimeRemaining === 0
-                      ? "text-green-600"
-                      : totalTimeRemaining < 300
-                        ? "text-secondary"
-                        : "text-primary"
-                  }`}
+        <div className="mt-11 overflow-hidden border-b border-border/70 pb-10">
+          <div
+            className={cn(
+              "transition-all duration-300 ease-out",
+              slideState === "next-exit" && "-translate-x-full opacity-0",
+              slideState === "next-enter" && "translate-x-full opacity-0",
+              slideState === "previous-exit" && "translate-x-full opacity-0",
+              slideState === "previous-enter" && "-translate-x-full opacity-0",
+              slideState === "idle" && "translate-x-0 opacity-100"
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div ref={drillTitleContainerRef} className="relative min-w-0 flex-1">
+                <h2
+                  className={cn(
+                    "font-bold leading-[1.05] tracking-normal transition-[font-size]",
+                    drillTitleFit.shouldWrap ? "line-clamp-2 whitespace-normal" : "whitespace-nowrap"
+                  )}
+                  style={{ fontSize: `${drillTitleFit.fontSizeRem}rem` }}
                 >
-                  {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-                </div>
-                <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-                  {totalTimeRemaining === 0 ? "Practice Complete!" : "Overall time remaining"}
+                  {currentDrillName}
+                </h2>
+                <span
+                  ref={drillTitleMeasureRef}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-0 top-0 -z-10 whitespace-nowrap font-bold leading-[1.05] tracking-normal opacity-0"
+                  style={{ fontSize: `${DEFAULT_DRILL_TITLE_FONT_SIZE_REM}rem` }}
+                >
+                  {currentDrillName}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="mt-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => setIsDrillDetailsOpen((open) => !open)}
+                aria-label={isDrillDetailsOpen ? "Collapse drill details" : "Expand drill details"}
+              >
+                {isDrillDetailsOpen ? <ChevronUp className="h-7 w-7" /> : <ChevronDown className="h-7 w-7" />}
+              </button>
+            </div>
+            <div className="mt-5 flex w-full max-w-full touch-pan-x flex-nowrap overflow-x-auto overscroll-x-contain items-center gap-2 pb-1 pr-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {currentDrill?.segment && (
+                <Badge variant="outline" className="h-8 shrink-0 border-border bg-muted/35 px-3 py-0 text-[1.05rem] font-medium leading-none text-muted-foreground">
+                  {formatSegmentLabel(currentDrill.segment)}
+                </Badge>
+              )}
+              {drillSequence.length > 0 && (
+                <Badge variant="outline" className="h-8 shrink-0 border-border bg-muted/35 px-3 py-0 text-[1.05rem] font-medium leading-none text-muted-foreground">
+                  {currentDrillIndex + 1} of {drillSequence.length}
+                </Badge>
+              )}
+              {currentDrill?.focus && (
+                <Badge variant="outline" className="h-8 shrink-0 border-primary/50 bg-primary/10 px-3 py-0 text-[1.05rem] font-medium leading-none text-primary">
+                  {currentDrillFocusLabel}
+                </Badge>
+              )}
+            </div>
+
+            <div className="mt-6">
+              <div className="flex w-full flex-wrap items-baseline gap-2 overflow-visible">
+                <span className="shrink-0 text-[3.825rem] font-bold leading-none tracking-normal tabular-nums">
+                  {formatTimer(drillTimeRemaining)}
+                </span>
+                <span className="shrink-0 pb-2 text-[1.35rem] font-medium text-muted-foreground">remaining</span>
+                {isCurrentDrillFinished && !showFeedback && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mb-2 ml-1 h-8 shrink-0 gap-1.5 rounded-full px-3 text-xs font-semibold"
+                    onClick={() => hasNextDrill ? handleNextDrill() : handleEndTimer()}
+                    disabled={isAnimating || drillSequence.length === 0}
+                    aria-label={finishedDrillActionLabel}
+                  >
+                    {finishedDrillActionLabel}
+                    {hasNextDrill ? (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                )}
+              </div>
+              <p className="sr-only">{drillRemainingLabel}</p>
+              {currentDrillOvertime > 0 && (
+                <p className="mt-1 inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-500">
+                  {formatTimer(currentDrillOvertime)} overtime
                 </p>
-                {timeSaved > 0 && totalTimeRemaining > 0 && (
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-4 py-2 text-green-700">
-                    <Zap className="h-4 w-4" />
-                    <span className="font-semibold">
-                      {Math.floor(timeSaved / 60)}:{String(timeSaved % 60).padStart(2, "0")} ahead of schedule
-                    </span>
+              )}
+            </div>
+
+            {isDrillDetailsOpen && currentDrill && (
+              <div className="mt-6 space-y-3 rounded-[8px] border border-border bg-card/80 px-4 py-4 text-base leading-7 text-muted-foreground">
+                {currentDrill.description && <p>{currentDrill.description}</p>}
+                {currentDrill.explainWhy && (
+                  <p>
+                    <span className="font-medium text-foreground">Why:</span> {currentDrill.explainWhy}
+                  </p>
+                )}
+                {currentDrill.cues && currentDrill.cues.length > 0 && (
+                  <div>
+                    <p className="mb-1 font-medium text-foreground">Cues</p>
+                    <ul className="space-y-1">
+                      {currentDrill.cues.map((cue, index) => (
+                        <li key={`${cue}-${index}`} className="flex gap-2">
+                          <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" />
+                          <span>{cue}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
-                {timeBehind > 0 && totalTimeRemaining > 0 && (
-                  <div className="mt-4 inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-full px-4 py-2">
-                    <Clock className="h-4 w-4" />
-                    <span className="font-semibold">
-                      {Math.floor(timeBehind / 60)}:{String(timeBehind % 60).padStart(2, "0")} behind schedule
-                    </span>
-                  </div>              
-                )}                
-                {drillSequence.length > 0 && totalTimeRemaining > 0 && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Currently on: <span className="font-medium text-foreground">{currentDrill?.name}</span>
-                    <span className="mx-2">•</span>
-                    <span className="font-medium text-primary">Drill {currentDrillIndex + 1} of {drillSequence.length}</span>
-                  </p>
-                )}                
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="text-center space-y-3">
-                <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total Clock</div>
-                <div className="text-4xl font-bold tabular-nums text-primary sm:text-5xl">
-                  {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-                </div>
-                <p className="text-sm text-muted-foreground">Practice time remaining</p>
-              </div>
-
-              <div className="overflow-hidden">
-                <div
-                  className={`text-center space-y-2 transition-all duration-300 ease-out ${
-                    slideState === "sliding-out"
-                      ? "-translate-x-full opacity-0"
-                      : slideState === "sliding-in"
-                        ? "translate-x-full opacity-0"
-                        : "translate-x-0 opacity-100"
-                  }`}
-                >
-                  <p className="text-xs uppercase tracking-[0.2em] text-primary/80">
-                    Current Drill{drillSequence.length > 0 && ` • ${currentDrillIndex + 1} of ${drillSequence.length}`}
-                  </p>
-                  <h3 className="text-xl font-bold text-secondary sm:text-2xl">
-                    {currentDrill?.name || "No drills in this practice"}
-                  </h3>
-                  {currentDrill?.segment && (
-                    <Badge variant="outline" className="border-secondary/30 text-secondary">
-                      {currentDrill.segment}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-             <div className="overflow-hidden">
-                <div
-                    className={`space-y-3 rounded-2xl border border-secondary/40 bg-secondary/5 p-4 text-center transition-all duration-300 ease-out sm:p-6 ${
-                    slideState === "sliding-out"
-                      ? "-translate-x-full opacity-0"
-                      : slideState === "sliding-in"
-                        ? "translate-x-full opacity-0"
-                        : "translate-x-0 opacity-100"
-                  }`}
-                >
-                  <p className="text-sm font-semibold uppercase tracking-[0.15em] text-secondary">Drill Timer</p>
-                  <div className="text-5xl font-bold tabular-nums text-secondary sm:text-6xl">
-                    {String(drillMinutes).padStart(2, "0")}:{String(drillSeconds).padStart(2, "0")}
+                {currentDrill.tags && currentDrill.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentDrill.tags.slice(0, 5).map((tag) => (
+                      <Badge key={tag} variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
+                        {tag}
+                      </Badge>
+                    ))}
                   </div>
-                  <p className="text-muted-foreground text-sm">
-                    {currentDrill
-                      ? `${currentDrill.duration} min allocated`
-                      : "Add drills to see per-drill timing"}
-                  </p>
-                  <div className="flex flex-col items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      className="h-12 w-full gap-2 sm:w-auto"
-                      onClick={handleNextDrill}
-                      disabled={isLastDrill || isAnimating}
-                    >
-                      <SkipForward className="h-4 w-4" />
-                      Skip Drill
-                      {drillTimeRemaining > 0 && !isLastDrill && (
-                        <span className="text-xs opacity-75">
-                          (+{Math.floor(drillTimeRemaining / 60)}:{String(drillTimeRemaining % 60).padStart(2, "0")})
-                        </span>
-                      )}
-                    </Button>
-                    {timeSaved > 0 && (
-                      <p className="text-sm text-green-600 font-medium flex items-center gap-1">
-                        <Zap className="h-3.5 w-3.5" />
-                        {Math.floor(timeSaved / 60)}:{String(timeSaved % 60).padStart(2, "0")} ahead of schedule
-                      </p>
-                    )}
-                    {timeBehind > 0 && (
-                      <p className="text-sm text-red-600 font-medium flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        {Math.floor(timeBehind / 60)}:{String(timeBehind % 60).padStart(2, "0")} behind schedule
-                      </p>                  
-                    )}                    
-                  </div>                
-                </div>   
+                )}
+                {currentDrill.mediaUrl && (
+                  <a
+                    href={currentDrill.mediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary"
+                  >
+                    View drill resource
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
               </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border-b border-border/70">
+          <button
+            type="button"
+            className="flex min-h-[6rem] w-full items-center justify-between gap-3 py-6 text-left disabled:cursor-default disabled:opacity-70"
+            onClick={() => nextDrill && setIsNextPreviewOpen((open) => !open)}
+            disabled={!nextDrill}
+          >
+            <span className="min-w-0 flex-1 truncate text-[1.55rem] leading-[1.2] text-muted-foreground">
+              <span className="font-medium text-foreground">Next:</span>{" "}
+              {nextDrill?.name || "Practice complete"}
+            </span>
+            {nextDrill && (
+              <ChevronDown
+                className={cn(
+                  "h-7 w-7 shrink-0 text-muted-foreground transition-transform",
+                  isNextPreviewOpen && "rotate-180"
+                )}
+              />
+            )}
+          </button>
+          {isNextPreviewOpen && nextDrill && (
+            <div className="space-y-3 pb-5 text-base text-muted-foreground">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
+                  {formatSegmentLabel(nextDrill.segment)}
+                </Badge>
+                {nextDrill.focus && (
+                  <Badge variant="outline" className="border-primary/35 bg-primary/10 px-2 py-0 text-[11px] font-medium text-primary">
+                    {nextDrillFocusLabel}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
+                  {nextDrill.duration} min
+                </Badge>
+              </div>
+              {nextDrill.description && <p className="line-clamp-2 leading-6">{nextDrill.description}</p>}
             </div>
           )}
+        </div>
 
-          {totalTimeRemaining === 0 && !showFeedback && (
-            <div className="space-y-3 text-center">
-              <p className="text-green-700 font-semibold">Great work! Ready to leave feedback?</p>
-              <Button size="lg" className="h-12 w-full gap-2 px-8 sm:w-auto" onClick={handleShowFeedback}>
-                <CheckCircle2 className="h-5 w-5" />
-                Leave Feedback
-              </Button>
-            </div>
-                )}
+        <div className="space-y-3 pb-3 pt-5">
+          <div className="grid min-h-[7rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-border bg-muted/35 text-muted-foreground">
+              <Clock className="h-7 w-7" />
+            </span>
+            <span className="inline-flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
+              <span className="text-[2.3rem] font-bold leading-none tabular-nums">
+                {elapsedPracticeClock}
+              </span>
+              <span className="text-[1.25rem] font-medium text-muted-foreground">/ {totalDurationLabel}</span>
+            </span>
+          </div>
 
-          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 flex justify-center gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
-            <Button
-              size="lg"
-              className="h-14 flex-1 gap-2 px-8 sm:flex-none"
-              onClick={() => setIsRunning(!isRunning)}
-              disabled={totalTimeRemaining === 0}
-            >
-              {isRunning ? (
+          <div className="flex min-h-11 items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-1 flex-wrap gap-2 text-xs font-medium">
+              {(timeSaved > 0 || timeBehind > 0) && (
                 <>
-                  <Pause className="h-5 w-5" />
-                  Pause
-                </>
-              ) : (
-                <>
-                  <Play className="h-5 w-5" />
-                  Start
+                  {timeSaved > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-green-500">
+                      <Zap className="h-3.5 w-3.5" />
+                      {Math.floor(timeSaved / 60)}:{String(timeSaved % 60).padStart(2, "0")} ahead
+                    </span>
+                  )}
+                  {timeBehind > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-red-500">
+                      <Clock className="h-3.5 w-3.5" />
+                      {Math.floor(timeBehind / 60)}:{String(timeBehind % 60).padStart(2, "0")} behind
+                    </span>
+                  )}
                 </>
               )}
-            </Button>
+            </div>
 
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-14 w-14"
-              onClick={() => {
-                setTotalTimeRemaining(totalDurationMinutes * 60);
-                setCurrentDrillIndex(0);
-                setDrillTimeRemaining((drillSequence[0]?.duration || 0) * 60);
-                setIsRunning(false);
-                setTimeSaved(0);
-                setShowTimeSavedToast(false);
-                setSkippedDrillFills(new Map());
-                setTimeBehind(0);
-                setShowTimeBehindToast(false);
-                setCurrentDrillOvertime(0);                  
-              }}              
-            >
-              <RotateCcw className="h-5 w-5" />
-            </Button>
+            <div className="flex shrink-0 justify-end gap-5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 rounded-full px-0 text-[1.15rem] font-medium text-muted-foreground hover:bg-transparent"
+                onClick={handleResetPractice}
+              >
+                <RotateCcw className="h-5 w-5" />
+                Reset
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 rounded-full px-0 text-[1.15rem] font-medium text-muted-foreground hover:bg-transparent"
+                onClick={handleEndTimer}
+              >
+                <Square className="h-5 w-5" />
+                End
+              </Button>
+            </div>
+          </div>
+        </div>
 
-            <Button variant="outline" size="icon" className="h-14 w-14" onClick={handleEndTimer}>
-              <Square className="h-5 w-5" />
+        {totalTimeRemaining === 0 && !showFeedback && (
+          <div className="space-y-3 border-t border-border/70 pt-4 text-center">
+            <p className="text-sm font-semibold text-green-500">Practice complete. Ready for feedback?</p>
+            <Button size="lg" className="h-12 w-full gap-2 rounded-[8px]" onClick={handleShowFeedback}>
+              <CheckCircle2 className="h-5 w-5" />
+              Leave Feedback
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </section>
 
       {showFeedback && (
-        <div ref={feedbackRef}>
-          <Card className="rounded-xl border-2 border-primary">
-            <CardHeader className="bg-primary/5 p-4 sm:p-6">
-              <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-primary" />
-                Post-Practice Feedback
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6 p-4 sm:p-6">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="rating">Rate this practice plan</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-3xl font-bold text-primary">{feedbackRating}</span>
-                    <span className="text-muted-foreground">/ 10</span>
-                  </div>
-                </div>
-                <Slider
-                  id="rating"
-                  value={[feedbackRating]}
-                  min={1}
-                  max={10}
-                  step={1}
-                  onValueChange={(value) => setFeedbackRating(value[0])}
-                  className="py-4"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Needs Work</span>
-                  <span>Average</span>
-                  <span>Excellent</span>
+        <div ref={feedbackRef} className="-mx-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:-mx-6 md:mx-0">
+          <section className="overflow-hidden border-y border-border bg-card text-card-foreground md:rounded-[8px] md:border">
+            <div className="space-y-6 px-4 py-6 sm:px-6 sm:py-7 md:px-8">
+              <div className="space-y-5">
+                <h2 className="whitespace-nowrap text-[2.05rem] font-bold leading-[1.05] tracking-normal text-foreground sm:text-[2.35rem]">
+                  How was practice?
+                </h2>
+                <div className="h-px w-full bg-border" />
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-[1.05rem] text-muted-foreground">Overall</p>
+                <div className="flex items-center gap-3 sm:gap-4">
+                  {[1, 2, 3, 4, 5].map((rating) => {
+                    const isFilled = rating <= overallStarRating;
+                    return (
+                      <button
+                        key={rating}
+                        type="button"
+                        className="inline-flex bg-transparent p-0 leading-none transition focus-visible:outline-none"
+                        onClick={() => setOverallStarRating(rating)}
+                        aria-label={`Rate practice ${rating} star${rating === 1 ? "" : "s"}`}
+                      >
+                        <Star
+                          className={`h-10 w-10 transition sm:h-12 sm:w-12 ${
+                            isFilled
+                              ? "fill-primary text-primary"
+                              : "text-muted-foreground/45"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <Label htmlFor="feedback">Comments (optional)</Label>
-                <Textarea
-                  id="feedback"
-                  placeholder="E.g., too boring, too intense, great energy, need more variety..."
-                  value={feedbackNotes}
-                  onChange={(e) => setFeedbackNotes(e.target.value)}
-                  rows={4}
-                  className="min-h-32 resize-none"
-                />
+              <div className="space-y-4">
+                <p className="text-[1.05rem] text-muted-foreground">Engagement</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {overallEngagementOptions.map((option) => {
+                    const isSelected = overallEngagement === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`h-12 rounded-full border px-4 text-base font-medium transition ${
+                          isSelected
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-muted/30 text-muted-foreground"
+                        }`}
+                        onClick={() => setOverallEngagement(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                {isOverallNoteOpen ? (
+                  <Textarea
+                    value={overallNote}
+                    onChange={(event) => setOverallNote(event.target.value)}
+                    placeholder="Add note"
+                    autoFocus
+                    className="min-h-28 resize-none rounded-[8px] border-border bg-background px-4 py-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="flex min-h-16 w-full items-center gap-3 rounded-[8px] border border-border bg-background px-4 text-left text-primary transition hover:border-primary/60 hover:bg-muted/40"
+                    onClick={() => setIsOverallNoteOpen(true)}
+                  >
+                    <PencilLine className="h-5 w-5" />
+                    <span className="text-base font-semibold">Add note</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-6">
+                {segmentedFeedbackDrills.map((segment) => (
+                  <section key={segment.segment} className="space-y-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      {segment.segment}
+                    </h3>
+                    <div className="space-y-3">
+                      {segment.drills.map(({ drill, key }) => {
+                        const feedback = drillFeedbackByKey[key] ?? {
+                          quickRating: null,
+                          engagement: null,
+                          note: "",
+                        };
+                        const isExpanded = expandedDrillKey === key;
+
+                        return (
+                          <article
+                            key={key}
+                            className={`overflow-hidden rounded-[8px] border bg-background transition ${
+                              isExpanded
+                                ? "border-primary"
+                                : "border-border"
+                            }`}
+                          >
+                            <div className="flex min-h-[4.75rem] items-center gap-2 px-3 py-3">
+                              <button
+                                type="button"
+                                className="min-w-0 flex-1 text-left focus-visible:outline-none"
+                                onClick={() => setExpandedDrillKey(isExpanded ? null : key)}
+                              >
+                                <h4 className="line-clamp-2 text-lg font-semibold leading-snug text-foreground">
+                                  {drill.name}
+                                </h4>
+                              </button>
+
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
+                                    feedback.quickRating === "down"
+                                      ? "border-primary bg-primary/10 text-primary"
+                                      : "border-border bg-muted/30 text-muted-foreground"
+                                  }`}
+                                  onClick={() =>
+                                    updateDrillFeedback(key, {
+                                      quickRating: feedback.quickRating === "down" ? null : "down",
+                                    })
+                                  }
+                                  aria-label={`Rate ${drill.name} down`}
+                                >
+                                  <ThumbsDown className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
+                                    feedback.quickRating === "up"
+                                      ? "border-primary bg-primary/10 text-primary"
+                                      : "border-border bg-muted/30 text-muted-foreground"
+                                  }`}
+                                  onClick={() =>
+                                    updateDrillFeedback(key, {
+                                      quickRating: feedback.quickRating === "up" ? null : "up",
+                                    })
+                                  }
+                                  aria-label={`Rate ${drill.name} up`}
+                                >
+                                  <ThumbsUp className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                  onClick={() => setExpandedDrillKey(isExpanded ? null : key)}
+                                  aria-label={isExpanded ? `Collapse ${drill.name}` : `Expand ${drill.name}`}
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-5 w-5" />
+                                  ) : (
+                                    <ChevronDown className="h-5 w-5" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="space-y-5 border-t border-border px-4 pb-5 pt-5">
+                                <div className="space-y-3">
+                                  <p className="text-[1.05rem] text-muted-foreground">Engagement</p>
+                                  <div className="grid grid-cols-3 gap-3">
+                                    {drillEngagementOptions.map((option) => {
+                                      const isSelected = feedback.engagement === option.value;
+                                      return (
+                                        <button
+                                          key={option.value}
+                                          type="button"
+                                          className={`h-10 rounded-full border px-3 text-base font-medium transition ${
+                                            isSelected
+                                              ? "border-primary bg-primary/10 text-primary"
+                                              : "border-border bg-muted/30 text-muted-foreground"
+                                          }`}
+                                          onClick={() =>
+                                            updateDrillFeedback(key, {
+                                              engagement: option.value,
+                                            })
+                                          }
+                                        >
+                                          {option.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                <Textarea
+                                  value={feedback.note}
+                                  onChange={(event) =>
+                                    updateDrillFeedback(key, {
+                                      note: event.target.value,
+                                    })
+                                  }
+                                  placeholder="add feedback"
+                                  className="min-h-24 resize-none rounded-[8px] border-border bg-card px-4 py-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                                />
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
 
               <Button
-                onClick={handleSubmitFeedback}
-                disabled={isSubmitting}
+                type="button"
                 size="lg"
-                className="h-12 w-full gap-2"
+                className="h-14 w-full rounded-[8px] bg-[#168dff] text-base font-semibold text-white hover:bg-[#0f7ee6]"
+                onClick={handleLocalFeedbackSave}
               >
-                <CheckCircle2 className="h-5 w-5" />
-                {isSubmitting ? "Submitting..." : "Submit Feedback"}
+                Save Feedback
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </div>
       )}
     </div>

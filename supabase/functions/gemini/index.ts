@@ -124,7 +124,41 @@ const createAuthedSupabaseClient = (authorization: string) => {
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 
-const getGeminiModelName = () => Deno.env.get("GEMINI_MODEL")?.trim() || DEFAULT_GEMINI_MODEL;
+const normalizeGeminiModelName = (value?: string) => {
+  const model = value?.trim();
+
+  if (!model) {
+    return DEFAULT_GEMINI_MODEL;
+  }
+
+  if (/^AIza/i.test(model)) {
+    throw Object.assign(
+      new Error(
+        "GEMINI_MODEL looks like an API key. Set GEMINI_MODEL to a Gemini model id such as gemini-2.5-flash-lite or gemini-3-flash-preview."
+      ),
+      {
+        code: "invalid_model_name",
+        status: 400,
+      }
+    );
+  }
+
+  if (/\s/.test(model)) {
+    throw Object.assign(
+      new Error(
+        "GEMINI_MODEL must be a Gemini model id, not a display label. Use dash-separated ids like gemini-2.5-flash-lite."
+      ),
+      {
+        code: "invalid_model_name",
+        status: 400,
+      }
+    );
+  }
+
+  return model.toLowerCase();
+};
+
+const getGeminiModelName = () => normalizeGeminiModelName(Deno.env.get("GEMINI_MODEL"));
 
 const getModel = () => {
   const apiKey = Deno.env.get("GEMINI_API_KEY");

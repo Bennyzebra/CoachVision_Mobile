@@ -47,3 +47,28 @@ test("AutoPlan cancellation aborts the active generation request", () => {
   assert.match(autoPlanSource, /generatePracticePlan\([\s\S]*signal:\s*abortController\.signal/);
   assert.match(autoPlanSource, /generateDrillExplainWhys\([\s\S]*signal:\s*abortController\.signal/);
 });
+
+test("AutoPlan has a temporary demo plan bypass that avoids Gemini generation calls", () => {
+  assert.match(autoPlanSource, /TEMP_DEMO_PLAN_BYPASS_ENABLED/);
+  assert.match(autoPlanSource, /const generateDemoPlan = \(\) => \{/);
+  assert.match(autoPlanSource, /demoDrills/);
+  assert.match(autoPlanSource, /onClick=\{generateDemoPlan\}/);
+  assert.match(autoPlanSource, /Use Demo Drills/);
+
+  const demoHandlerStart = autoPlanSource.indexOf("const generateDemoPlan = () => {");
+  const realGeneratorStart = autoPlanSource.indexOf("const generatePlan = async () => {");
+  assert.notEqual(demoHandlerStart, -1);
+  assert.notEqual(realGeneratorStart, -1);
+
+  const demoHandlerSource = autoPlanSource.slice(demoHandlerStart, realGeneratorStart);
+  assert.doesNotMatch(demoHandlerSource, /generatePracticePlan\(/);
+  assert.doesNotMatch(demoHandlerSource, /generateDrillExplainWhys\(/);
+});
+
+test("AutoPlan demo plan setup preserves a chosen practice title", () => {
+  assert.match(
+    autoPlanSource,
+    /setPracticeTitle\(\(currentTitle\) => currentTitle\.trim\(\) \|\| "Practice"\);/
+  );
+  assert.doesNotMatch(autoPlanSource, /setPracticeTitle\("Demo Practice Plan"\);/);
+});

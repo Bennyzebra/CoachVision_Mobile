@@ -38,6 +38,8 @@ set GEMINI_API_KEY=...
 ```
 
 Optional: override the default model with `GEMINI_MODEL` if you need to try a different Gemini variant.
+Use the actual model id, not the display name. Good examples are `gemini-2.5-flash-lite` and `gemini-3-flash-preview`.
+Do not paste your API key into `GEMINI_MODEL`.
 
 Deploy the function after setting the secret:
 

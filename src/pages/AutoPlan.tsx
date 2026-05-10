@@ -78,6 +78,7 @@ const MIN_PRACTICE_DURATION = 10;
 const MAX_PRACTICE_DURATION = 240;
 const GENERATION_ESTIMATE_MS = 30000;
 const GENERATION_PROGRESS_MAX_BEFORE_COMPLETE = 92;
+const TEMP_DEMO_PLAN_BYPASS_ENABLED = true;
 
 const clampPracticeDuration = (value: number) =>
   Math.min(MAX_PRACTICE_DURATION, Math.max(MIN_PRACTICE_DURATION, value));
@@ -780,6 +781,57 @@ const AutoPlan = () => {
     positionsEmphasis: d.positions_emphasis,
     requiresFullCourt: d.requires_full_court,
   });
+
+  const generateDemoPlan = () => {
+    if (state.plan.length > 0) {
+      if (!confirm("This will clear your current plan. Continue?")) {
+        return;
+      }
+    }
+
+    generationAbortControllerRef.current?.abort();
+    generationRequestIdRef.current += 1;
+    setIsGenerating(false);
+    setGenerationProgress(100);
+
+    const findDemoDrill = (id: string) => demoDrills.find((drill) => drill.id === id);
+    const withExplainWhy = (drill: Drill, explainWhy: string): Drill => ({
+      ...drill,
+      explainWhy,
+    });
+
+    const warmup = [
+      findDemoDrill("1"),
+      findDemoDrill("7"),
+    ].filter((drill): drill is Drill => Boolean(drill));
+
+    const mainSegment = [
+      findDemoDrill("2"),
+      findDemoDrill("5"),
+      findDemoDrill("10"),
+    ].filter((drill): drill is Drill => Boolean(drill));
+
+    const coolDown = [
+      findDemoDrill("12"),
+      findDemoDrill("4"),
+    ].filter((drill): drill is Drill => Boolean(drill));
+
+    setGeneratedPlan({
+      warmup: warmup.map((drill) =>
+        withExplainWhy(drill, "Demo warm-up drill selected from local sample data.")
+      ),
+      main_segment: mainSegment.map((drill) =>
+        withExplainWhy(drill, "Demo main-segment drill selected from local sample data.")
+      ),
+      cool_down: coolDown.map((drill) =>
+        withExplainWhy(drill, "Demo cool-down drill selected from local sample data.")
+      ),
+      coach_notes:
+        "Temporary demo plan loaded from local sample drills. No LLM prompt request was sent.",
+    });
+    setPracticeTitle((currentTitle) => currentTitle.trim() || "Practice");
+    toast.success("Demo practice plan loaded.");
+  };
   
   const generatePlan = async () => {
     if (players.length === 0) {
@@ -1026,7 +1078,6 @@ const AutoPlan = () => {
       if (error) throw error;
 
       if (data) {
-        toast.success("Practice saved successfully!");
         navigate(`/run?practiceId=${data.id}`);
       }
     } catch (error) {
@@ -1690,7 +1741,7 @@ const AutoPlan = () => {
       </Card>
 
       {/* Generate Button */}
-      <div className="py-2 sm:py-4">
+      <div className="space-y-3 py-2 sm:py-4">
         <Button
           onClick={generatePlan}
           size="lg"
@@ -1709,6 +1760,19 @@ const AutoPlan = () => {
             </>
           )}
         </Button>
+        {TEMP_DEMO_PLAN_BYPASS_ENABLED && (
+          <Button
+            type="button"
+            onClick={generateDemoPlan}
+            size="lg"
+            variant="outline"
+            disabled={isGenerating}
+            className="h-12 w-full gap-2 text-base shadow-sm sm:h-14 sm:gap-3 sm:text-lg"
+          >
+            <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
+            Use Demo Drills
+          </Button>
+        )}
       </div>
     </div>
     {generationOverlay}
