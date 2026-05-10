@@ -74,6 +74,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const [routeMotionDirection, setRouteMotionDirection] = useState<RouteMotionDirection>(null);
   const routePagerIndex = location.pathname === "/drills" ? 1 : 0;
   const isPrimaryPagerRoute = location.pathname === "/" || location.pathname === "/drills";
+  const isRunPracticeRoute = location.pathname.startsWith("/run");
   const [pagerProgress, setPagerProgress] = useState(routePagerIndex);
   const [isPagerDragging, setIsPagerDragging] = useState(false);
   const [mobileBottomAction, setMobileBottomAction] =
@@ -526,62 +527,69 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </nav>
 
-      <header
-        ref={mobileHeaderRef}
-        className={cn(
-          "fixed inset-x-0 top-0 z-40 border-b border-border/80 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden",
-          "will-change-transform",
-          isMobileHeaderTransitioning && "transition-transform duration-300 ease-out"
-        )}
-        style={{ transform: `translate3d(0, -${mobileHeaderOffsetPx}px, 0)` }}
-      >
-        <div className="px-4 pt-[var(--mobile-header-top-padding)]">
-          <div className="flex h-14 -translate-y-[var(--mobile-header-content-lift)] items-center justify-between gap-3">
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 text-left"
-              onClick={() => handleNavigate(TEAM_IDENTITY_DESTINATION)}
-              aria-label="Go to Team & Roster"
-            >
-              {currentTeam?.logo_url ? (
-                <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-[2.5875rem] w-[2.5875rem] rounded-full object-cover" />
-              ) : (
-                <img src={logo} alt="CoachVision" className="h-[3.45rem] w-auto shrink-0" />
-              )}
-              <span className="h-6 w-px shrink-0 rounded-full bg-border" aria-hidden="true" />
-              <span className="truncate text-base font-semibold">
-                {currentTeam?.team_name || "CoachVision"}
-              </span>
-            </button>
+      {!isRunPracticeRoute && (
+        <header
+          ref={mobileHeaderRef}
+          className={cn(
+            "fixed inset-x-0 top-0 z-40 border-b border-border/80 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden",
+            "will-change-transform",
+            isMobileHeaderTransitioning && "transition-transform duration-300 ease-out"
+          )}
+          style={{ transform: `translate3d(0, -${mobileHeaderOffsetPx}px, 0)` }}
+        >
+          <div className="px-4 pt-[var(--mobile-header-top-padding)]">
+            <div className="flex h-14 -translate-y-[var(--mobile-header-content-lift)] items-center justify-between gap-3">
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                onClick={() => handleNavigate(TEAM_IDENTITY_DESTINATION)}
+                aria-label="Go to Team & Roster"
+              >
+                {currentTeam?.logo_url ? (
+                  <img src={currentTeam.logo_url} alt={currentTeam.team_name} className="h-[2.5875rem] w-[2.5875rem] rounded-full object-cover" />
+                ) : (
+                  <img src={logo} alt="CoachVision" className="h-[3.45rem] w-auto shrink-0" />
+                )}
+                <span className="h-6 w-px shrink-0 rounded-full bg-border" aria-hidden="true" />
+                <span className="truncate text-base font-semibold">
+                  {currentTeam?.team_name || "CoachVision"}
+                </span>
+              </button>
 
-            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11 rounded-full border border-border/70 bg-card"
-                  aria-label="Open account menu"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-base font-semibold text-black">
-                    {(profile?.coach_name || "Coach").charAt(0).toUpperCase()}
-                  </span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[86vw] max-w-sm !pt-[calc(var(--app-safe-area-top)+1.5rem)] [&>button]:top-[calc(var(--app-safe-area-top)+1rem)]">
-                <SheetHeader className="text-left">
-                  <SheetTitle>Account</SheetTitle>
-                </SheetHeader>
-                <div className="mt-4">
-                  {accountMenuContent}
-                </div>
-              </SheetContent>
-            </Sheet>
+              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-11 w-11 rounded-full border border-border/70 bg-card"
+                    aria-label="Open account menu"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-base font-semibold text-black">
+                      {(profile?.coach_name || "Coach").charAt(0).toUpperCase()}
+                    </span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[86vw] max-w-sm !pt-[calc(var(--app-safe-area-top)+1.5rem)] [&>button]:top-[calc(var(--app-safe-area-top)+1rem)]">
+                  <SheetHeader className="text-left">
+                    <SheetTitle>Account</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-4">
+                    {accountMenuContent}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+
           </div>
+        </header>
+      )}
 
-        </div>
-      </header>
-
-      <main className="w-full overflow-x-hidden px-4 pb-[calc(5.4rem+var(--app-safe-area-bottom))] pt-[var(--mobile-content-top-offset)] sm:px-6 md:py-6 lg:px-8">
+      <main
+        className={cn(
+          "w-full overflow-x-hidden px-4 pb-[calc(5.4rem+var(--app-safe-area-bottom))] pt-[var(--mobile-content-top-offset)] sm:px-6 md:py-6 lg:px-8",
+          isRunPracticeRoute && "pt-[calc(var(--app-safe-area-top)+0.75rem)] pb-[calc(4rem+var(--app-safe-area-bottom))] sm:px-4"
+        )}
+      >
         {isMobileViewport && isPrimaryPagerRoute ? (
           <MobilePrimaryPager progress={pagerProgress} isDragging={isPagerDragging} />
         ) : (

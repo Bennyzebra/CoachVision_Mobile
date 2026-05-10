@@ -878,7 +878,6 @@ const AutoPlan = () => {
       if (error) throw error;
 
       if (data) {
-        toast.success("Practice saved successfully!");
         navigate(`/run?practiceId=${data.id}`);
       }
     } catch (error) {

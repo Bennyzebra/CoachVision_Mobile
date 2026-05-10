@@ -1,18 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Library, Loader2, Play, Sparkles } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useMobileBottomAction } from "@/components/MobileBottomActionContext";
+import type { MobileBottomSegmentedAction } from "@/components/MobileBottomActionContext";
 import { useMobilePager } from "@/components/MobilePagerContext";
 import { getMobileBottomBarState } from "@/components/mobileBottomBarState";
 import { cn } from "@/lib/utils";
 
 type RouteMotionDirection = "left" | "right";
+type SegmentedSwipeIntent = "idle" | "horizontal" | "vertical";
 type SearchBarProps = {
   placement?: "default" | "mobile-bottom";
 };
 
 const MOBILE_CONTROL_MOTION = "420ms cubic-bezier(0.22, 1, 0.36, 1)";
 const MOBILE_ROUTE_LABEL_MOTION_MS = 300;
+const SEGMENTED_SWIPE_DEADZONE_PX = 8;
+const SEGMENTED_SWIPE_HORIZONTAL_INTENT_BIAS_PX = 6;
+const SEGMENTED_SWIPE_THRESHOLD_PX = 56;
+const SEGMENTED_SWIPE_COMMIT_MS = 180;
+const SEGMENTED_CONTENT_MOTION_MS = 150;
 
 const emitRouteMotion = (direction: RouteMotionDirection) => {
   window.dispatchEvent(
@@ -106,6 +113,123 @@ const AnimatedRouteLabel = ({ label, className }: AnimatedRouteLabelProps) => {
   );
 };
 
+type SegmentContent = {
+  label: string;
+  icon?: ReactNode;
+};
+
+type AnimatedSegmentContentProps = {
+  segment: MobileBottomSegmentedAction;
+  iconAfterLabel?: boolean;
+};
+
+const renderSegmentContent = (content: SegmentContent, iconAfterLabel: boolean) => {
+  const label = (
+    <span className="min-w-0 truncate whitespace-nowrap">
+      {content.label}
+    </span>
+  );
+
+  if (iconAfterLabel) {
+    return (
+      <>
+        {label}
+        {content.icon}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {content.icon}
+      {label}
+    </>
+  );
+};
+
+const AnimatedSegmentContent = ({ segment, iconAfterLabel = false }: AnimatedSegmentContentProps) => {
+  const label = segment.compactLabel ?? segment.label;
+  const [displayContent, setDisplayContent] = useState<SegmentContent>({ label, icon: segment.icon });
+  const [incomingContent, setIncomingContent] = useState<SegmentContent>({ label, icon: segment.icon });
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const visibleContentRef = useRef<SegmentContent>({ label, icon: segment.icon });
+  const transitionFrameRef = useRef<number | null>(null);
+  const transitionTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const nextContent = { label, icon: segment.icon };
+
+    if (label === visibleContentRef.current.label) {
+      visibleContentRef.current = nextContent;
+      setDisplayContent(nextContent);
+      setIncomingContent(nextContent);
+      return;
+    }
+
+    if (transitionFrameRef.current !== null) {
+      window.cancelAnimationFrame(transitionFrameRef.current);
+      transitionFrameRef.current = null;
+    }
+
+    if (transitionTimerRef.current !== null) {
+      window.clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = null;
+    }
+
+    const previousContent = visibleContentRef.current;
+    visibleContentRef.current = nextContent;
+    setDisplayContent(previousContent);
+    setIncomingContent(nextContent);
+    setIsTransitioning(false);
+
+    transitionFrameRef.current = window.requestAnimationFrame(() => {
+      setIsTransitioning(true);
+    });
+
+    transitionTimerRef.current = window.setTimeout(() => {
+      setDisplayContent(nextContent);
+      setIsTransitioning(false);
+    }, SEGMENTED_CONTENT_MOTION_MS);
+
+    return () => {
+      if (transitionFrameRef.current !== null) {
+        window.cancelAnimationFrame(transitionFrameRef.current);
+        transitionFrameRef.current = null;
+      }
+      if (transitionTimerRef.current !== null) {
+        window.clearTimeout(transitionTimerRef.current);
+        transitionTimerRef.current = null;
+      }
+    };
+  }, [label, segment.icon]);
+
+  const isAnimating = displayContent.label !== incomingContent.label || isTransitioning;
+
+  return (
+    <span className="relative flex h-6 min-w-0 flex-1 items-center justify-center overflow-hidden">
+      <span
+        key={displayContent.label}
+        className={cn(
+          "absolute inset-0 flex items-center justify-center gap-2 transition-all duration-150 ease-out group-active:scale-95 motion-reduce:transition-none",
+          isAnimating ? "-translate-y-1 opacity-0" : "translate-y-0 opacity-100"
+        )}
+      >
+        {renderSegmentContent(displayContent, iconAfterLabel)}
+      </span>
+      <span
+        key={segment.compactLabel ?? segment.label}
+        aria-hidden={!isAnimating}
+        className={cn(
+          "absolute inset-0 flex items-center justify-center gap-2 transition-all duration-150 ease-out group-active:scale-95 motion-reduce:transition-none",
+          isAnimating ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+        )}
+      >
+        {renderSegmentContent(incomingContent, iconAfterLabel)}
+      </span>
+    </span>
+  );
+};
+
 export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -116,11 +240,18 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
   const [containerWidth, setContainerWidth] = useState(0);
   const [mobilePagerDragOffset, setMobilePagerDragOffset] = useState<number | null>(null);
   const [generatedPlanNavExpanded, setGeneratedPlanNavExpanded] = useState(false);
+  const [segmentedSwipeDeltaX, setSegmentedSwipeDeltaX] = useState(0);
+  const [segmentedSwipeTargetIndex, setSegmentedSwipeTargetIndex] = useState<number | null>(null);
   const touchStartXRef = useRef<number | null>(null);
   const touchDeltaXRef = useRef(0);
   const suppressClickRef = useRef(false);
   const hasPointerCaptureRef = useRef(false);
   const mobilePagerStartOffsetRef = useRef(0);
+  const segmentedSwipeStartXRef = useRef<number | null>(null);
+  const segmentedSwipeStartYRef = useRef(0);
+  const segmentedSwipeLatestDeltaXRef = useRef(0);
+  const segmentedSwipeIntentRef = useRef<SegmentedSwipeIntent>("idle");
+  const segmentedSwipeTimerRef = useRef<number | null>(null);
 
   const mobileBottomBarState = getMobileBottomBarState(location.pathname);
   const isAutoPlanActive =
@@ -195,11 +326,66 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
   const mobilePagerTransition = mobilePager?.isDragging
     ? "none"
     : `transform ${MOBILE_CONTROL_MOTION}`;
-  const isGeneratedPlanActionActive = Boolean(
-    placement === "mobile-bottom" && mobileBottomAction?.active
+  const singleBottomAction =
+    mobileBottomAction?.variant === "segmented" ? null : mobileBottomAction;
+  const isSegmentedActionActive = Boolean(
+    placement === "mobile-bottom" &&
+      mobileBottomAction?.active &&
+      mobileBottomAction.variant === "segmented"
   );
-  const generatedPlanFullLabel = mobileBottomAction?.label ?? "Save and Continue to Practice";
-  const generatedPlanCompactLabel = mobileBottomAction?.compactLabel ?? "Continue to practice";
+  const isGeneratedPlanActionActive = Boolean(
+    placement === "mobile-bottom" && singleBottomAction?.active
+  );
+  const generatedPlanFullLabel = singleBottomAction?.label ?? "Save and Continue to Practice";
+  const generatedPlanCompactLabel = singleBottomAction?.compactLabel ?? "Continue to practice";
+  const segmentedSegments =
+    mobileBottomAction?.variant === "segmented" ? mobileBottomAction.segments : [];
+  const segmentedFallbackActiveIndex = segmentedSegments.findIndex((segment) => segment.primary);
+  const segmentedActiveSegmentIndex =
+    segmentedSegments.length > 0
+      ? Math.max(
+          0,
+          Math.min(
+            mobileBottomAction?.variant === "segmented"
+              ? mobileBottomAction.activeSegmentIndex ?? segmentedFallbackActiveIndex
+              : 0,
+            segmentedSegments.length - 1
+          )
+        )
+      : 0;
+  const segmentedHighlightProgress = Math.min(
+    1,
+    Math.abs(segmentedSwipeDeltaX) / SEGMENTED_SWIPE_THRESHOLD_PX
+  );
+
+  const getSegmentedSegmentLayout = (index: number) => {
+    const horizontalPaddingPx = 16;
+    const separatorWidthPx = Math.max(segmentedSegments.length - 1, 0) * 9;
+    const availableWidth = Math.max(containerWidth - horizontalPaddingPx - separatorWidthPx, 0);
+    const weights = segmentedSegments.map((segment) => (segment.primary ? 1.08 : 0.96));
+    const totalWeight = weights.reduce((total, weight) => total + weight, 0) || 1;
+    const width = availableWidth * ((weights[index] ?? 1) / totalWeight);
+    const x =
+      8 +
+      weights.slice(0, index).reduce((total, weight) => total + availableWidth * (weight / totalWeight), 0) +
+      index * 9;
+
+    return { x, width };
+  };
+
+  const segmentedActiveLayout = getSegmentedSegmentLayout(segmentedActiveSegmentIndex);
+  const segmentedTargetLayout =
+    segmentedSwipeTargetIndex === null
+      ? segmentedActiveLayout
+      : getSegmentedSegmentLayout(segmentedSwipeTargetIndex);
+  const segmentedHighlightStyle = {
+    x:
+      segmentedActiveLayout.x +
+      (segmentedTargetLayout.x - segmentedActiveLayout.x) * segmentedHighlightProgress,
+    width:
+      segmentedActiveLayout.width +
+      (segmentedTargetLayout.width - segmentedActiveLayout.width) * segmentedHighlightProgress,
+  };
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     if (containerRef.current === node) return;
@@ -222,16 +408,30 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
   }, []);
 
   const resetBarInteractionState = useCallback(() => {
+    if (segmentedSwipeTimerRef.current !== null) {
+      window.clearTimeout(segmentedSwipeTimerRef.current);
+      segmentedSwipeTimerRef.current = null;
+    }
     touchStartXRef.current = null;
     touchDeltaXRef.current = 0;
     suppressClickRef.current = false;
     hasPointerCaptureRef.current = false;
     mobilePagerStartOffsetRef.current = 0;
+    segmentedSwipeStartXRef.current = null;
+    segmentedSwipeStartYRef.current = 0;
+    segmentedSwipeLatestDeltaXRef.current = 0;
+    segmentedSwipeIntentRef.current = "idle";
     setMobilePagerDragOffset(null);
+    setSegmentedSwipeDeltaX(0);
+    setSegmentedSwipeTargetIndex(null);
   }, []);
 
   useEffect(() => {
     return () => {
+      if (segmentedSwipeTimerRef.current !== null) {
+        window.clearTimeout(segmentedSwipeTimerRef.current);
+        segmentedSwipeTimerRef.current = null;
+      }
       containerResizeObserverRef.current?.disconnect();
       containerResizeObserverRef.current = null;
     };
@@ -258,7 +458,7 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
 
   useEffect(() => {
     resetBarInteractionState();
-  }, [isMobilePagerEnabled, location.pathname, resetBarInteractionState]);
+  }, [isMobilePagerEnabled, isSegmentedActionActive, location.pathname, resetBarInteractionState]);
 
   const navigateWithMotion = (path: string, direction: RouteMotionDirection) => {
     emitRouteMotion(direction);
@@ -331,6 +531,174 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
     }, 120);
   };
 
+  const getSegmentedActionTargetIndex = (deltaX: number) => {
+    if (
+      mobileBottomAction?.variant !== "segmented" ||
+      !mobileBottomAction.swipeEnabled ||
+      deltaX === 0
+    ) {
+      return null;
+    }
+
+    const targetIndex = segmentedActiveSegmentIndex + (deltaX > 0 ? 1 : -1);
+    const targetSegment = mobileBottomAction.segments[targetIndex];
+
+    if (!targetSegment || targetSegment.disabled) {
+      return null;
+    }
+
+    return targetIndex;
+  };
+
+  const getSegmentedVisualTargetIndex = (deltaX: number) => {
+    if (
+      mobileBottomAction?.variant !== "segmented" ||
+      !mobileBottomAction.swipeEnabled ||
+      deltaX === 0 ||
+      getSegmentedActionTargetIndex(deltaX) === null
+    ) {
+      return null;
+    }
+
+    const targetIndex = segmentedActiveSegmentIndex + (deltaX > 0 ? 1 : -1);
+    const targetSegment = mobileBottomAction.segments[targetIndex];
+
+    if (!targetSegment) {
+      return null;
+    }
+
+    return targetIndex;
+  };
+
+  const resetSegmentedSwipeState = (delayMs = 0) => {
+    if (segmentedSwipeTimerRef.current !== null) {
+      window.clearTimeout(segmentedSwipeTimerRef.current);
+      segmentedSwipeTimerRef.current = null;
+    }
+
+    const reset = () => {
+      segmentedSwipeStartXRef.current = null;
+      segmentedSwipeStartYRef.current = 0;
+      segmentedSwipeLatestDeltaXRef.current = 0;
+      segmentedSwipeIntentRef.current = "idle";
+      setSegmentedSwipeDeltaX(0);
+      setSegmentedSwipeTargetIndex(null);
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+        hasPointerCaptureRef.current = false;
+      }, 0);
+    };
+
+    if (delayMs > 0) {
+      segmentedSwipeTimerRef.current = window.setTimeout(reset, delayMs);
+      return;
+    }
+
+    reset();
+  };
+
+  const handleSegmentedPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (mobileBottomAction?.variant !== "segmented" || !mobileBottomAction.swipeEnabled) {
+      return;
+    }
+
+    if (segmentedSwipeTimerRef.current !== null) {
+      window.clearTimeout(segmentedSwipeTimerRef.current);
+      segmentedSwipeTimerRef.current = null;
+    }
+
+    segmentedSwipeStartXRef.current = event.clientX;
+    segmentedSwipeStartYRef.current = event.clientY;
+    segmentedSwipeLatestDeltaXRef.current = 0;
+    segmentedSwipeIntentRef.current = "idle";
+    suppressClickRef.current = false;
+    hasPointerCaptureRef.current = false;
+    setSegmentedSwipeDeltaX(0);
+    setSegmentedSwipeTargetIndex(null);
+  };
+
+  const handleSegmentedPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (
+      segmentedSwipeStartXRef.current === null ||
+      mobileBottomAction?.variant !== "segmented" ||
+      !mobileBottomAction.swipeEnabled
+    ) {
+      return;
+    }
+
+    const deltaX = event.clientX - segmentedSwipeStartXRef.current;
+    const deltaY = event.clientY - segmentedSwipeStartYRef.current;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    if (segmentedSwipeIntentRef.current === "idle") {
+      if (Math.max(absX, absY) < SEGMENTED_SWIPE_DEADZONE_PX) return;
+
+      segmentedSwipeIntentRef.current =
+        absX > absY + SEGMENTED_SWIPE_HORIZONTAL_INTENT_BIAS_PX ? "horizontal" : "vertical";
+
+      if (segmentedSwipeIntentRef.current !== "horizontal") {
+        return;
+      }
+    }
+
+    if (segmentedSwipeIntentRef.current !== "horizontal") {
+      return;
+    }
+
+    const nextTargetIndex = getSegmentedVisualTargetIndex(deltaX);
+    segmentedSwipeLatestDeltaXRef.current = deltaX;
+    suppressClickRef.current = true;
+    setSegmentedSwipeTargetIndex(nextTargetIndex);
+    setSegmentedSwipeDeltaX(nextTargetIndex === null ? 0 : deltaX);
+
+    if (!hasPointerCaptureRef.current) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      hasPointerCaptureRef.current = true;
+    }
+  };
+
+  const handleSegmentedPointerEnd = () => {
+    if (segmentedSwipeStartXRef.current === null) return;
+
+    const deltaX = segmentedSwipeLatestDeltaXRef.current;
+    const actionTargetIndex = getSegmentedActionTargetIndex(deltaX);
+    const visualTargetIndex = getSegmentedVisualTargetIndex(deltaX);
+    const shouldCommit =
+      segmentedSwipeIntentRef.current === "horizontal" &&
+      actionTargetIndex !== null &&
+      Math.abs(deltaX) >= SEGMENTED_SWIPE_THRESHOLD_PX;
+
+    segmentedSwipeStartXRef.current = null;
+    segmentedSwipeLatestDeltaXRef.current = 0;
+    segmentedSwipeIntentRef.current = "idle";
+
+    if (!shouldCommit || mobileBottomAction?.variant !== "segmented") {
+      resetSegmentedSwipeState();
+      return;
+    }
+
+    setSegmentedSwipeTargetIndex(visualTargetIndex);
+    setSegmentedSwipeDeltaX(deltaX > 0 ? SEGMENTED_SWIPE_THRESHOLD_PX : -SEGMENTED_SWIPE_THRESHOLD_PX);
+
+    if (deltaX > 0) {
+      mobileBottomAction.onSwipeLeftToRight?.();
+    } else {
+      mobileBottomAction.onSwipeRightToLeft?.();
+    }
+
+    resetSegmentedSwipeState(SEGMENTED_SWIPE_COMMIT_MS);
+  };
+
+  const handleSegmentedPointerCancel = () => {
+    resetSegmentedSwipeState();
+  };
+
+  const isSeparatorCoveredByHighlight = (index: number) => {
+    const highlightedIndex = segmentedSwipeTargetIndex ?? segmentedActiveSegmentIndex;
+    return highlightedIndex === index || highlightedIndex === index + 1;
+  };
+
   const renderPagerPill = (
     target: "autoplan" | "library",
     options: { onAutoPlanIconClick?: () => void } = {}
@@ -401,7 +769,68 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
     );
   };
 
-  if (isGeneratedPlanActionActive && mobileBottomAction) {
+  if (isSegmentedActionActive && mobileBottomAction?.variant === "segmented") {
+    return (
+      <div
+        ref={setContainerNode}
+        onPointerDown={handleSegmentedPointerDown}
+        onPointerMove={handleSegmentedPointerMove}
+        onPointerUp={handleSegmentedPointerEnd}
+        onPointerCancel={handleSegmentedPointerCancel}
+        className="relative flex h-12 w-[19rem] max-w-[calc(100vw-2rem)] touch-pan-y items-center overflow-hidden rounded-full bg-muted px-2 shadow-sm"
+      >
+        <span
+          className="pointer-events-none absolute top-1 h-10 rounded-full bg-[#168dff] shadow-sm will-change-transform"
+          style={{
+            width: `${segmentedHighlightStyle.width}px`,
+            transform: `translate3d(${segmentedHighlightStyle.x}px, 0, 0)`,
+            transition:
+              segmentedSwipeIntentRef.current === "horizontal"
+                ? "none"
+                : `transform ${MOBILE_CONTROL_MOTION}, width ${MOBILE_CONTROL_MOTION}`,
+          }}
+          aria-hidden="true"
+        />
+        {mobileBottomAction.segments.map((segment, index) => (
+          <Fragment key={segment.id ?? segment.label}>
+            <button
+              type="button"
+              onClick={() => {
+                if (suppressClickRef.current) return;
+                segment.onClick();
+              }}
+              disabled={segment.disabled}
+              className={cn(
+                "group relative z-10 flex h-10 min-w-0 items-center justify-center gap-2 rounded-full px-2 text-base font-medium transition-[transform,color,background-color] duration-150 ease-out active:scale-[0.96] disabled:pointer-events-none disabled:opacity-35 motion-reduce:transition-none",
+                segment.primary ? "flex-[1.08]" : "flex-[0.96]",
+                (segmentedSwipeTargetIndex ?? segmentedActiveSegmentIndex) === index
+                  ? "text-white"
+                  : "text-muted-foreground active:bg-background/50 active:text-foreground"
+              )}
+              aria-label={segment.label}
+              title={segment.label}
+            >
+              {segment.label === "Next" ? (
+                <AnimatedSegmentContent segment={segment} iconAfterLabel />
+              ) : (
+                <AnimatedSegmentContent segment={segment} />
+              )}
+            </button>
+            {index < mobileBottomAction.segments.length - 1 && (
+              <div
+                className={cn(
+                  "relative z-10 mx-1 h-7 w-[1px] shrink-0 bg-border/70 transition-opacity",
+                  isSeparatorCoveredByHighlight(index) && "opacity-0"
+                )}
+              />
+            )}
+          </Fragment>
+        ))}
+      </div>
+    );
+  }
+
+  if (isGeneratedPlanActionActive && singleBottomAction) {
     return (
       <div
         className="relative h-12 w-full max-w-[calc(100vw-2rem)]"
@@ -451,8 +880,8 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
 
         <button
           type="button"
-          onClick={mobileBottomAction.onClick}
-          disabled={mobileBottomAction.isLoading}
+          onClick={singleBottomAction.onClick}
+          disabled={singleBottomAction.isLoading}
           className={cn(
             "absolute right-0 top-0 flex h-12 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground shadow-sm transition-[width,background-color,color] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-70",
             generatedPlanNavExpanded
@@ -466,14 +895,14 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
           aria-label={generatedPlanNavExpanded ? generatedPlanCompactLabel : generatedPlanFullLabel}
           title={generatedPlanNavExpanded ? generatedPlanCompactLabel : generatedPlanFullLabel}
         >
-          {mobileBottomAction.isLoading ? (
+          {singleBottomAction.isLoading ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
             <Play className="h-5 w-5 shrink-0" />
           )}
           {!generatedPlanNavExpanded && (
             <span className="min-w-0 truncate whitespace-nowrap">
-              {mobileBottomAction.isLoading ? "Saving..." : generatedPlanFullLabel}
+              {singleBottomAction.isLoading ? "Saving..." : generatedPlanFullLabel}
             </span>
           )}
         </button>

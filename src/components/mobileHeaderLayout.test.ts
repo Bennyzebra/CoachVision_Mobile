@@ -12,3 +12,12 @@ test("mobile content starts just below the header with title-subtitle rhythm", (
   );
   assert.match(layoutSource, /pt-\[var\(--mobile-content-top-offset\)\]/);
 });
+
+test("run practice hides the mobile team header and uses the bottom divider as the cutoff", () => {
+  assert.match(layoutSource, /isRunPracticeRoute/);
+  assert.match(layoutSource, /!isRunPracticeRoute && \(/);
+  assert.match(layoutSource, /isRunPracticeRoute && "pt-\[calc\(var\(--app-safe-area-top\)\+0\.75rem\)\] pb-\[calc\(4rem\+var\(--app-safe-area-bottom\)\)\] sm:px-4"/);
+  assert.doesNotMatch(layoutSource, /isRunPracticeRoute && "pt-\[calc\(var\(--mobile-header-height\)\+0\.5rem\)\] sm:px-4"/);
+  assert.doesNotMatch(layoutSource, /mobile-header-height\)\+0\.5rem/);
+  assert.doesNotMatch(layoutSource, /mobile-content-top-offset\)\+2\.75rem/);
+});
