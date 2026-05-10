@@ -193,7 +193,6 @@ const RunPractice = () => {
   const [timeSaved, setTimeSaved] = useState(0);
   const [showTimeSavedToast, setShowTimeSavedToast] = useState(false);
   const [lastSkipSaved, setLastSkipSaved] = useState(0);
-  const [skippedDrillFills, setSkippedDrillFills] = useState<Map<number, number>>(new Map());
   const [timeBehind, setTimeBehind] = useState(0);
   const [showTimeBehindToast, setShowTimeBehindToast] = useState(false);
   const [lastOvertimeUsed, setLastOvertimeUsed] = useState(0);
@@ -365,7 +364,6 @@ const RunPractice = () => {
     setIsRunning(false);
     setTimeSaved(0);
     setShowTimeSavedToast(false);
-    setSkippedDrillFills(new Map());
     setTimeBehind(0);
     setShowTimeBehindToast(false);
     setCurrentDrillOvertime(0);
@@ -422,22 +420,6 @@ const RunPractice = () => {
         setShowTimeBehindToast(false);
       }, 3000);
     }   
-    // Record the fill percentage for the skipped drill so it persists
-    const drillDurationMilliseconds = (drillSequence[currentDrillIndex]?.duration || 0) * 60 * 1000;
-    const elapsedInDrillMilliseconds =
-      drillDurationMilliseconds -
-      drillTimeRemainingMillisecondsRef.current +
-      currentDrillOvertimeMillisecondsRef.current;
-    const fillPercent = drillDurationMilliseconds > 0
-      ? (elapsedInDrillMilliseconds / drillDurationMilliseconds) * 100
-      : 0;
-    
-    setSkippedDrillFills(prev => {
-      const newMap = new Map(prev);
-      newMap.set(currentDrillIndex, fillPercent);
-      return newMap;
-    });
-   
     setIsAnimating(true);
     setSlideState("next-exit");
 
@@ -714,58 +696,61 @@ const RunPractice = () => {
           >
             <div className="flex h-full w-full">
               {drillSequence.length > 0 ? (
-                drillSequence.map((drill, index) => {
-                  const drillDurationSeconds = (drill.duration || 0) * 60;
-                  const drillWidthPercent = totalDurationSeconds > 0 
-                    ? (drillDurationSeconds / totalDurationSeconds) * 100 
-                    : 0;
+                (() => {
+                  let elapsedMillisecondsBeforeSegment = 0;
 
-                  let segmentFillPercent = 0;
-                  if (index < currentDrillIndex) {
-                    segmentFillPercent = skippedDrillFills.get(index) ?? 100;
-                  }
-                  if (index === currentDrillIndex) {
+                  return drillSequence.map((drill, index) => {
+                    const drillDurationSeconds = (drill.duration || 0) * 60;
                     const drillDurationMilliseconds = drillDurationSeconds * 1000;
-                    const elapsedInDrillMilliseconds =
-                      drillDurationMilliseconds -
-                      drillTimeRemainingMillisecondsRef.current +
-                      currentDrillOvertimeMillisecondsRef.current;
-                    segmentFillPercent = drillDurationMilliseconds > 0
-                      ? (elapsedInDrillMilliseconds / drillDurationMilliseconds) * 100
+                    const drillWidthPercent = totalDurationSeconds > 0
+                      ? (drillDurationSeconds / totalDurationSeconds) * 100
                       : 0;
-                  }
+                    const elapsedMillisecondsAtSegmentStart = elapsedMillisecondsBeforeSegment;
+                    const elapsedMillisecondsInSegment = Math.max(
+                      0,
+                      Math.min(
+                        elapsedPracticeMilliseconds - elapsedMillisecondsAtSegmentStart,
+                        drillDurationMilliseconds
+                      )
+                    );
+                    const segmentFillPercent = drillDurationMilliseconds > 0
+                      ? (elapsedMillisecondsInSegment / drillDurationMilliseconds) * 100
+                      : 0;
 
-                  const mutedClass =
-                    drill.segment === "Warmup"
-                      ? "bg-secondary/20"
-                      : drill.segment === "Cool Down"
-                        ? "bg-foreground/15"
-                        : "bg-primary/20";
-                  const fillClass =
-                    drill.segment === "Warmup"
-                      ? "bg-secondary"
-                      : drill.segment === "Cool Down"
-                        ? "bg-foreground/55"
-                        : "bg-primary";
-                  
-                  return (
-                    <div
-                      key={index}
-                      className={cn(
-                        "h-full overflow-hidden",
-                        mutedClass,
-                        index < drillSequence.length - 1 && "border-r border-background/80"
-                      )}
-                      style={{ width: `${drillWidthPercent}%` }}
-                      title={`${drill.name} (${drill.duration} min) - ${drill.segment}`}
-                    >
+                    elapsedMillisecondsBeforeSegment += drillDurationMilliseconds;
+
+                    const mutedClass =
+                      drill.segment === "Warmup"
+                        ? "bg-secondary/20"
+                        : drill.segment === "Cool Down"
+                          ? "bg-foreground/15"
+                          : "bg-primary/20";
+                    const fillClass =
+                      drill.segment === "Warmup"
+                        ? "bg-secondary"
+                        : drill.segment === "Cool Down"
+                          ? "bg-foreground/55"
+                          : "bg-primary";
+                    
+                    return (
                       <div
-                        className={cn("h-full transition-all duration-500", fillClass)}
-                        style={{ width: `${Math.max(0, Math.min(100, segmentFillPercent))}%` }}
-                      />
-                    </div>
-                  );
-                })
+                        key={index}
+                        className={cn(
+                          "h-full overflow-hidden",
+                          mutedClass,
+                          index < drillSequence.length - 1 && "border-r border-background/80"
+                        )}
+                        style={{ width: `${drillWidthPercent}%` }}
+                        title={`${drill.name} (${drill.duration} min) - ${drill.segment}`}
+                      >
+                        <div
+                          className={cn("h-full transition-all duration-500", fillClass)}
+                          style={{ width: `${Math.max(0, Math.min(100, segmentFillPercent))}%` }}
+                        />
+                      </div>
+                    );
+                  });
+                })()
               ) : (
                 <div className="h-full bg-primary" style={{ width: `${practiceProgress}%` }} />
               )}
