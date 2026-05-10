@@ -33,6 +33,11 @@ test("RunPractice feedback panel follows the app-native visual refinement", () =
   assert.doesNotMatch(runPracticeSource, /radial-gradient/);
   assert.doesNotMatch(runPracticeSource, /shadow-\[0_24px_80px/);
   assert.doesNotMatch(runPracticeSource, /tap-target/);
+  assert.doesNotMatch(runPracticeSource, /bg-card text-card-foreground/);
+  assert.doesNotMatch(runPracticeSource, /bg-\[#168dff\]/);
+  assert.doesNotMatch(runPracticeSource, /hover:bg-\[#0f7ee6\]/);
+  assert.match(runPracticeSource, /bg-background text-foreground/);
+  assert.match(runPracticeSource, /bg-primary text-primary-foreground hover:bg-primary\/90/);
   assert.match(runPracticeSource, /-mx-4/);
   assert.match(runPracticeSource, /whitespace-nowrap/);
   assert.match(runPracticeSource, /line-clamp-2/);
@@ -202,4 +207,27 @@ test("RunPractice shows an inline finished-drill action beside the remaining tim
   assert.match(runPracticeSource, /hasNextDrill \? handleNextDrill\(\) : handleEndTimer\(\)/);
   assert.match(runPracticeSource, /disabled=\{isAnimating \|\| drillSequence\.length === 0\}/);
   assert.match(runPracticeSource, /finishedDrillActionLabel/);
+});
+
+test("RunPractice uses one net pace banner for ahead and behind updates", () => {
+  assert.match(runPracticeSource, /type PaceNotification = \{/);
+  assert.match(runPracticeSource, /kind: "ahead" \| "behind"/);
+  assert.match(runPracticeSource, /eventSeconds: number/);
+  assert.match(runPracticeSource, /netSeconds: number/);
+  assert.match(runPracticeSource, /id: number/);
+  assert.match(runPracticeSource, /paceNotificationTimeoutRef = useRef<number \| null>\(null\)/);
+  assert.match(runPracticeSource, /clearPaceNotificationTimeout/);
+  assert.match(runPracticeSource, /window\.clearTimeout\(paceNotificationTimeoutRef\.current\)/);
+  assert.match(runPracticeSource, /showPaceNotification/);
+  assert.match(runPracticeSource, /setPaceNotification\(null\)/);
+  assert.match(runPracticeSource, /const nextNetSeconds = nextTimeSaved - nextTimeBehind/);
+  assert.match(runPracticeSource, /Math\.abs\(nextNetSeconds\)/);
+  assert.match(runPracticeSource, /paceNotification\?\.kind === "ahead"/);
+  assert.match(runPracticeSource, /paceNotification\.netSeconds/);
+  assert.doesNotMatch(runPracticeSource, /showTimeSavedToast/);
+  assert.doesNotMatch(runPracticeSource, /showTimeBehindToast/);
+  assert.equal(
+    runPracticeSource.match(/fixed top-4 left-1\/2 -translate-x-1\/2 z-50 transition-all duration-500 ease-out/g)?.length,
+    1
+  );
 });
