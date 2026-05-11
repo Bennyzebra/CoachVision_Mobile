@@ -33,7 +33,18 @@ test("RunPractice feedback panel follows the app-native visual refinement", () =
   assert.doesNotMatch(runPracticeSource, /radial-gradient/);
   assert.doesNotMatch(runPracticeSource, /shadow-\[0_24px_80px/);
   assert.doesNotMatch(runPracticeSource, /tap-target/);
-  assert.match(runPracticeSource, /-mx-4/);
+  assert.doesNotMatch(runPracticeSource, /bg-card text-card-foreground/);
+  assert.doesNotMatch(runPracticeSource, /bg-\[#168dff\]/);
+  assert.doesNotMatch(runPracticeSource, /hover:bg-\[#0f7ee6\]/);
+  assert.match(runPracticeSource, /bg-background text-foreground/);
+  assert.match(runPracticeSource, /border-border bg-card text-muted-foreground/);
+  assert.match(runPracticeSource, /overflow-hidden rounded-\[8px\] border bg-card transition/);
+  assert.match(runPracticeSource, /bg-primary text-primary-foreground hover:bg-primary\/90/);
+  assert.doesNotMatch(runPracticeSource, /ref=\{feedbackRef\} className="-mx-4/);
+  assert.match(runPracticeSource, /ref=\{feedbackRef\}[\s\S]*?w-full max-w-full overflow-x-hidden overscroll-x-none touch-pan-y/);
+  assert.match(runPracticeSource, /pb-\[env\(safe-area-inset-bottom\)\]/);
+  assert.doesNotMatch(runPracticeSource, /pb-\[calc\(2rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.doesNotMatch(runPracticeSource, /pb-\[calc\(6rem\+env\(safe-area-inset-bottom\)\)\]/);
   assert.match(runPracticeSource, /whitespace-nowrap/);
   assert.match(runPracticeSource, /line-clamp-2/);
   assert.doesNotMatch(runPracticeSource, /<h4 className="truncate/);
@@ -58,11 +69,54 @@ test("RunPractice live view follows the mobile sketch hierarchy", () => {
   assert.match(runPracticeSource, /isDrillDetailsOpen/);
 });
 
-test("RunPractice prevents closed-state page scrolling while keeping dropdown content scrollable", () => {
-  assert.match(runPracticeSource, /const isLiveContentScrollable = isDrillDetailsOpen \|\| isNextPreviewOpen/);
+test("RunPractice places a muted circular back chevron above the practice title", () => {
+  assert.match(runPracticeSource, /aria-label="Go back"/);
+  assert.match(runPracticeSource, /onClick=\{\(\) => navigate\(-1\)\}/);
+  assert.match(runPracticeSource, /relative mt-8 grid grid-cols-\[minmax\(0,1fr\)_auto\][\s\S]*?pb-1 pt-4/);
+  assert.match(runPracticeSource, /absolute -top-8 left-0 flex h-10 w-10/);
+  assert.match(runPracticeSource, /className="mt-5 h-2\.5 overflow-hidden rounded-full bg-muted\/70"/);
+  assert.match(runPracticeSource, /border border-border bg-muted\/35 text-muted-foreground/);
+  assert.match(runPracticeSource, /<ChevronLeft className="h-5 w-5" \/>/);
+  assert.ok(
+    runPracticeSource.indexOf('aria-label="Go back"') <
+      runPracticeSource.indexOf("{practiceDisplayTitle}"),
+    "Back chevron should render before the practice title"
+  );
+});
+
+test("RunPractice lets feedback scroll while keeping closed live practice locked", () => {
+  assert.match(runPracticeSource, /const isRunContentScrollable = showFeedback \|\| isDrillDetailsOpen \|\| isNextPreviewOpen/);
   assert.match(runPracticeSource, /h-\[calc\(100dvh-var\(--app-safe-area-top\)-4\.75rem-var\(--app-safe-area-bottom\)\)\]/);
-  assert.match(runPracticeSource, /isLiveContentScrollable \? "overflow-y-auto pb-2" : "overflow-hidden pb-0"/);
+  assert.match(runPracticeSource, /w-full max-w-md overflow-x-hidden overscroll-x-none scrollbar-none text-foreground/);
+  assert.match(runPracticeSource, /isRunContentScrollable \? "overflow-y-auto pb-2" : "overflow-hidden pb-0"/);
+  assert.match(runPracticeSource, /showFeedback && "touch-pan-y"/);
   assert.doesNotMatch(runPracticeSource, /<div className="mx-auto max-w-md pb-2 text-foreground">/);
+});
+
+test("RunPractice clamps feedback mode to vertical-only panning", () => {
+  assert.match(runPracticeSource, /showFeedback && \(/);
+  assert.match(
+    runPracticeSource,
+    /<div[\s\S]*?ref=\{feedbackRef\}[\s\S]*?className="w-full max-w-full overflow-x-hidden overscroll-x-none touch-pan-y pb-\[env\(safe-area-inset-bottom\)\]"/
+  );
+  assert.match(
+    runPracticeSource,
+    /<section className="w-full max-w-full overflow-hidden bg-background text-foreground">/
+  );
+  assert.doesNotMatch(
+    runPracticeSource,
+    /className="-mx-4 pb-\[calc\([^"]+\)\] sm:-mx-6 md:mx-0"/
+  );
+});
+
+test("RunPractice feedback mode registers Return and Save bottom actions", () => {
+  assert.match(runPracticeSource, /const handleReturnFromFeedback = useCallback\(\(\) => \{/);
+  assert.match(runPracticeSource, /setShowFeedback\(false\);/);
+  assert.match(runPracticeSource, /const handleSaveFeedbackAndExit = useCallback\(\(\) => \{/);
+  assert.match(runPracticeSource, /handleLocalFeedbackSave\(\);/);
+  assert.match(runPracticeSource, /navigate\("\/"\);/);
+  assert.match(runPracticeSource, /if \(showFeedback\) \{[\s\S]*variant: "segmented"[\s\S]*swipeEnabled: false[\s\S]*id: "feedback-return"[\s\S]*label: "Return"[\s\S]*onClick: handleReturnFromFeedback[\s\S]*id: "feedback-save"[\s\S]*label: "Save"[\s\S]*onClick: handleSaveFeedbackAndExit/);
+  assert.doesNotMatch(runPracticeSource, /Save Feedback/);
 });
 
 test("RunPractice next drill preview leaves room for descenders", () => {
@@ -82,14 +136,15 @@ test("RunPractice keeps the live drill title, quick tags, and countdown horizont
   assert.match(runPracticeSource, /drillTitleFit\.shouldWrap \? "line-clamp-2 whitespace-normal" : "whitespace-nowrap"/);
   assert.doesNotMatch(runPracticeSource, /truncate whitespace-nowrap font-bold leading-\[1\.05\] tracking-normal transition-\[font-size\]/);
   assert.doesNotMatch(runPracticeSource, /const getAdaptiveDrillTitleFontSizeRem = \(name\?: string\) => \{[\s\S]*?characterCount[\s\S]*?return Math\.max\(PRACTICE_TITLE_FONT_SIZE_REM/);
-  assert.match(runPracticeSource, /<button[\s\S]*?aria-label=\{isDrillDetailsOpen \? "Collapse drill details" : "Expand drill details"\}[\s\S]*?<\/button>\s*<\/div>\s*<div className="mt-5 flex w-full/);
+  assert.match(runPracticeSource, /renderLiveDrillCard/);
+  assert.match(runPracticeSource, /<button[\s\S]*?aria-label=\{detailsOpen \? "Collapse drill details" : "Expand drill details"\}[\s\S]*?<\/button>\s*<\/div>\s*<div className="mt-5 flex w-full/);
   assert.match(runPracticeSource, /w-full max-w-full touch-pan-x flex-nowrap overflow-x-auto overscroll-x-contain/);
   assert.match(runPracticeSource, /pr-5/);
   assert.match(runPracticeSource, /\[-ms-overflow-style:none\] \[scrollbar-width:none\] \[&::-webkit-scrollbar\]:hidden/);
   assert.match(runPracticeSource, /shrink-0 border-border bg-muted\/35 px-3 py-0 text-\[1\.05rem\]/);
   assert.match(runPracticeSource, /shrink-0 border-primary\/50 bg-primary\/10 px-3 py-0 text-\[1\.05rem\]/);
   assert.match(runPracticeSource, /return segment \|\| "Drill"/);
-  assert.match(runPracticeSource, /\{currentDrillFocusLabel\}/);
+  assert.match(runPracticeSource, /\{drillFocusLabel\}/);
   assert.doesNotMatch(runPracticeSource, /Cond(?:itioning)?\./);
   assert.doesNotMatch(runPracticeSource, /currentDrillFocusLabel\.slice/);
   assert.doesNotMatch(runPracticeSource, /currentDrillFocusLabel\.substring/);
@@ -105,7 +160,7 @@ test("RunPractice keeps the live drill title, quick tags, and countdown horizont
 });
 
 test("RunPractice aligns the practice title and total minutes to the same text baseline", () => {
-  assert.match(runPracticeSource, /grid min-h-\[5\.75rem\] grid-cols-\[minmax\(0,1fr\)_auto\] items-baseline/);
+  assert.match(runPracticeSource, /relative mt-8 grid grid-cols-\[minmax\(0,1fr\)_auto\] items-baseline/);
   assert.match(runPracticeSource, /text-\[1\.55rem\] font-semibold leading-none text-muted-foreground/);
   assert.doesNotMatch(runPracticeSource, /grid min-h-\[5\.75rem\] grid-cols-\[minmax\(0,1fr\)_auto\] items-center/);
   assert.doesNotMatch(runPracticeSource, /self-end pb-1 text-\[1\.55rem\] font-semibold leading-none text-muted-foreground/);
@@ -157,12 +212,14 @@ test("RunPractice keeps drill and total timers on one synchronized clock", () =>
 });
 
 test("RunPractice live progress bar distributes elapsed practice time across drill segments", () => {
+  assert.match(runPracticeSource, /import \{ getPracticeProgressSegments \} from "\.\/runPracticeProgress"/);
   assert.match(runPracticeSource, /const totalDurationMilliseconds = totalDurationSeconds \* 1000/);
-  assert.match(runPracticeSource, /elapsedPracticeMilliseconds \/ totalDurationMilliseconds/);
-  assert.match(runPracticeSource, /let elapsedMillisecondsBeforeSegment = 0/);
-  assert.match(runPracticeSource, /const elapsedMillisecondsAtSegmentStart = elapsedMillisecondsBeforeSegment/);
-  assert.match(runPracticeSource, /const elapsedMillisecondsInSegment = Math\.max\(\s*0,\s*Math\.min\(\s*elapsedPracticeMilliseconds - elapsedMillisecondsAtSegmentStart,\s*drillDurationMilliseconds\s*\)\s*\)/);
-  assert.match(runPracticeSource, /elapsedMillisecondsInSegment \/ drillDurationMilliseconds/);
+  assert.match(runPracticeSource, /getPracticeProgressSegments\(\{/);
+  assert.match(runPracticeSource, /elapsedPracticeMilliseconds,\s*totalDurationMilliseconds,\s*currentDrillIndex/);
+  assert.match(runPracticeSource, /progressSegment\.fillPercent/);
+  assert.match(runPracticeSource, /aria-current=\{progressSegment\.isActive \? "step" : undefined\}/);
+  assert.match(runPracticeSource, /progressSegment\.isActive && "ring-2 ring-inset ring-primary\/80"/);
+  assert.doesNotMatch(runPracticeSource, /let elapsedMillisecondsBeforeSegment = 0/);
   assert.doesNotMatch(runPracticeSource, /totalDurationSeconds - totalTimeRemaining/);
   assert.doesNotMatch(runPracticeSource, /segmentFillPercent = skippedDrillFills/);
   assert.doesNotMatch(runPracticeSource, /segmentFillPercent = skippedDrillFills\.get\(index\) \?\? 100/);
@@ -170,17 +227,50 @@ test("RunPractice live progress bar distributes elapsed practice time across dri
   assert.doesNotMatch(runPracticeSource, /drillDurationMilliseconds -\s*drillTimeRemainingMillisecondsRef\.current \+\s*currentDrillOvertimeMillisecondsRef\.current/);
 });
 
-test("RunPractice uses explicit mirrored slide directions for next and previous drills", () => {
-  assert.match(runPracticeSource, /type SlideState = "idle" \| "next-exit" \| "next-enter" \| "previous-exit" \| "previous-enter"/);
-  assert.match(runPracticeSource, /setSlideState\("next-exit"\)/);
-  assert.match(runPracticeSource, /setSlideState\("next-enter"\)/);
-  assert.match(runPracticeSource, /setSlideState\("previous-exit"\)/);
-  assert.match(runPracticeSource, /setSlideState\("previous-enter"\)/);
-  assert.match(runPracticeSource, /slideState === "next-exit" && "-translate-x-full opacity-0"/);
-  assert.match(runPracticeSource, /slideState === "next-enter" && "translate-x-full opacity-0"/);
-  assert.match(runPracticeSource, /slideState === "previous-exit" && "translate-x-full opacity-0"/);
-  assert.match(runPracticeSource, /slideState === "previous-enter" && "-translate-x-full opacity-0"/);
-  assert.doesNotMatch(runPracticeSource, /type SlideState = "idle" \| "sliding-out" \| "sliding-in"/);
+test("RunPractice reveals a clicked progress segment drill title below the bar", () => {
+  assert.match(runPracticeSource, /selectedProgressSegmentIndex, setSelectedProgressSegmentIndex/);
+  assert.match(runPracticeSource, /practiceProgressRef = useRef<HTMLDivElement \| null>\(null\)/);
+  assert.match(runPracticeSource, /const selectedProgressSegment = selectedProgressSegmentIndex === null \? null : progressSegments\[selectedProgressSegmentIndex\]/);
+  assert.match(runPracticeSource, /setSelectedProgressSegmentIndex\(\(currentIndex\) => \(currentIndex === index \? null : index\)\)/);
+  assert.match(runPracticeSource, /document\.addEventListener\("pointerdown", handleOutsideProgressPointerDown\)/);
+  assert.match(runPracticeSource, /practiceProgressRef\.current\.contains\(event\.target as Node\)/);
+  assert.match(runPracticeSource, /document\.removeEventListener\("pointerdown", handleOutsideProgressPointerDown\)/);
+  assert.match(runPracticeSource, /<button[\s\S]*?aria-label=\{`Show drill \$\{progressSegment\.name \|\| "Drill"\}`\}[\s\S]*?aria-pressed=\{selectedProgressSegmentIndex === index\}/);
+  assert.match(runPracticeSource, /ref=\{practiceProgressRef\} className="relative"/);
+  assert.match(runPracticeSource, /const selectedProgressSegmentLabelPositionPercent = selectedProgressSegment\s*\?\s*selectedProgressSegment\.startPercent \+ selectedProgressSegment\.widthPercent \/ 2\s*:\s*0/);
+  assert.match(runPracticeSource, /const isFirstSelectedProgressSegment = selectedProgressSegmentIndex === 0/);
+  assert.match(runPracticeSource, /const isLastSelectedProgressSegment = selectedProgressSegmentIndex === progressSegments\.length - 1/);
+  assert.match(runPracticeSource, /isFirstSelectedProgressSegment \? "left-0" : isLastSelectedProgressSegment \? "right-0" : "-translate-x-1\/2"/);
+  assert.match(runPracticeSource, /style=\{isFirstSelectedProgressSegment \|\| isLastSelectedProgressSegment\s*\?\s*undefined\s*:\s*\{ left: `\$\{selectedProgressSegmentLabelPositionPercent\}%` \}\}/);
+  assert.match(runPracticeSource, /className=\{cn\(\s*"absolute top-full mt-2 flex max-w-\[min\(18rem,100%\)\] items-center gap-1\.5 whitespace-nowrap text-sm font-medium text-muted-foreground"/);
+  assert.match(runPracticeSource, /selectedProgressSegment\?\.name && \(/);
+  assert.match(runPracticeSource, /\{selectedProgressSegment\.name\}/);
+  assert.match(runPracticeSource, /<span aria-hidden="true" className="shrink-0 text-muted-foreground\/70">•<\/span>/);
+  assert.match(runPracticeSource, /\{selectedProgressSegment\.duration\} min/);
+});
+
+test("RunPractice slides whole drill cards with mirrored two-panel transitions", () => {
+  assert.match(runPracticeSource, /type DrillSlideDirection = "next" \| "previous"/);
+  assert.match(runPracticeSource, /type DrillSlideTransition = \{/);
+  assert.match(runPracticeSource, /direction: DrillSlideDirection/);
+  assert.match(runPracticeSource, /fromIndex: number/);
+  assert.match(runPracticeSource, /toIndex: number/);
+  assert.match(runPracticeSource, /startDrillSlideTransition/);
+  assert.match(runPracticeSource, /renderLiveDrillCard/);
+  assert.match(runPracticeSource, /const outgoingDrillCardClassName = cn\(/);
+  assert.match(runPracticeSource, /const incomingDrillCardClassName = cn\(/);
+  assert.match(runPracticeSource, /const activeDrillCardKey = `active-\$\{currentDrillIndex\}`/);
+  assert.match(runPracticeSource, /key=\{`outgoing-\$\{drillSlideTransition\.fromIndex\}-\$\{drillSlideTransition\.toIndex\}-\$\{drillSlideTransition\.direction\}`\}/);
+  assert.match(runPracticeSource, /key=\{activeDrillCardKey\}[\s\S]*?\{renderLiveDrillCard\(drillSlideTransition\.toIndex\)\}/);
+  assert.match(runPracticeSource, /key=\{activeDrillCardKey\}[\s\S]*?\{renderLiveDrillCard\(currentDrillIndex\)\}/);
+  assert.match(runPracticeSource, /drillSlideTransition\.direction === "next" && "-translate-x-full"/);
+  assert.match(runPracticeSource, /drillSlideTransition\.direction === "previous" && "translate-x-full"/);
+  assert.match(runPracticeSource, /drillSlideTransition\.direction === "next" && "translate-x-full"/);
+  assert.match(runPracticeSource, /drillSlideTransition\.direction === "previous" && "-translate-x-full"/);
+  assert.match(runPracticeSource, /motion-reduce:transition-none/);
+  assert.doesNotMatch(runPracticeSource, /type SlideState = "idle" \| "next-exit" \| "next-enter" \| "previous-exit" \| "previous-enter"/);
+  assert.doesNotMatch(runPracticeSource, /setSlideState\("next-exit"\)/);
+  assert.doesNotMatch(runPracticeSource, /setSlideState\("previous-exit"\)/);
 });
 
 test("RunPractice keeps live run utility behavior while moving primary controls into the bottom bar", () => {
@@ -202,4 +292,47 @@ test("RunPractice shows an inline finished-drill action beside the remaining tim
   assert.match(runPracticeSource, /hasNextDrill \? handleNextDrill\(\) : handleEndTimer\(\)/);
   assert.match(runPracticeSource, /disabled=\{isAnimating \|\| drillSequence\.length === 0\}/);
   assert.match(runPracticeSource, /finishedDrillActionLabel/);
+});
+
+test("RunPractice uses one net pace banner for ahead and behind updates", () => {
+  assert.match(runPracticeSource, /type PaceNotification = \{/);
+  assert.match(runPracticeSource, /kind: "ahead" \| "behind"/);
+  assert.match(runPracticeSource, /eventSeconds: number/);
+  assert.match(runPracticeSource, /netSeconds: number/);
+  assert.match(runPracticeSource, /id: number/);
+  assert.match(runPracticeSource, /paceNotificationTimeoutRef = useRef<number \| null>\(null\)/);
+  assert.match(runPracticeSource, /paceNotificationDismissTimeoutRef = useRef<number \| null>\(null\)/);
+  assert.match(runPracticeSource, /clearPaceNotificationTimeout/);
+  assert.match(runPracticeSource, /window\.clearTimeout\(paceNotificationTimeoutRef\.current\)/);
+  assert.match(runPracticeSource, /showPaceNotification/);
+  assert.match(runPracticeSource, /setPaceNotification\(null\)/);
+  assert.match(runPracticeSource, /setIsPaceNotificationVisible\(false\)/);
+  assert.match(runPracticeSource, /const nextNetSeconds = nextTimeSaved - nextTimeBehind/);
+  assert.match(runPracticeSource, /Math\.abs\(nextNetSeconds\)/);
+  assert.match(runPracticeSource, /paceNotification && \(/);
+  assert.match(runPracticeSource, /paceNotification\.kind === "ahead"/);
+  assert.match(runPracticeSource, /paceNotification\.netSeconds/);
+  assert.match(
+    runPracticeSource,
+    /isPaceNotificationVisible[\s\S]*?opacity-100 translate-y-0[\s\S]*?opacity-0 -translate-y-4 pointer-events-none/
+  );
+  assert.match(runPracticeSource, /PACE_NOTIFICATION_EXIT_DURATION_MS = 500/);
+  assert.doesNotMatch(runPracticeSource, /showTimeSavedToast/);
+  assert.doesNotMatch(runPracticeSource, /showTimeBehindToast/);
+  assert.equal(
+    runPracticeSource.match(/fixed top-4 left-1\/2 -translate-x-1\/2 z-50 transition-all duration-500 ease-out/g)?.length,
+    1
+  );
+});
+
+test("RunPractice reverses pace totals when moving back to the previous drill", () => {
+  assert.match(runPracticeSource, /type PaceAdjustment = \{/);
+  assert.match(runPracticeSource, /savedSeconds: number/);
+  assert.match(runPracticeSource, /behindSeconds: number/);
+  assert.match(runPracticeSource, /paceAdjustmentsByDrillIndex/);
+  assert.match(runPracticeSource, /\[currentDrillIndex\]: \{/);
+  assert.match(runPracticeSource, /const adjustmentToReverse = paceAdjustmentsByDrillIndex\[previousIndex\]/);
+  assert.match(runPracticeSource, /Math\.max\(0, timeSaved - adjustmentToReverse\.savedSeconds\)/);
+  assert.match(runPracticeSource, /Math\.max\(0, timeBehind - adjustmentToReverse\.behindSeconds\)/);
+  assert.match(runPracticeSource, /delete nextAdjustments\[previousIndex\]/);
 });
