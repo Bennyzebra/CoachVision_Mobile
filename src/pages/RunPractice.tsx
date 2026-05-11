@@ -11,6 +11,7 @@ import {
   Clock,
   Star,
   CheckCircle2,
+  Save,
   Square,
   Zap,
   PencilLine,
@@ -26,7 +27,17 @@ import { toast } from "sonner";
 import { getPractice, Practice } from "@/services/practiceService";
 import { useMobileBottomAction } from "@/components/MobileBottomActionContext";
 import { cn } from "@/lib/utils";
-type SlideState = "idle" | "next-exit" | "next-enter" | "previous-exit" | "previous-enter";
+import { getPracticeProgressSegments } from "./runPracticeProgress";
+type DrillSlideDirection = "next" | "previous";
+type DrillSlideTransition = {
+  direction: DrillSlideDirection;
+  fromIndex: number;
+  toIndex: number;
+  phase: "ready" | "sliding";
+  fromDrillTimeRemaining: number;
+  fromDrillOvertime: number;
+  fromDetailsOpen: boolean;
+};
 type OverallEngagement = "low" | "ok" | "high";
 type DrillEngagement = "low" | "ok" | "great";
 type DrillQuickRating = "down" | "up";
@@ -40,6 +51,10 @@ type PaceNotification = {
   eventSeconds: number;
   netSeconds: number;
   id: number;
+};
+type PaceAdjustment = {
+  savedSeconds: number;
+  behindSeconds: number;
 };
 
 const overallEngagementOptions: Array<{ value: OverallEngagement; label: string }> = [
@@ -58,6 +73,8 @@ const PRACTICE_TITLE_FONT_SIZE_REM = 2;
 const DEFAULT_DRILL_TITLE_FONT_SIZE_REM = 2.8;
 const TIMER_SYNC_TOLERANCE_MS = 20;
 const PACE_NOTIFICATION_DURATION_MS = 3000;
+const PACE_NOTIFICATION_EXIT_DURATION_MS = 500;
+const DRILL_SLIDE_DURATION_MS = 300;
 
 type DrillTitleFit = {
   fontSizeRem: number;
@@ -195,24 +212,30 @@ const RunPractice = () => {
   const [overallNote, setOverallNote] = useState("");
   const [expandedDrillKey, setExpandedDrillKey] = useState<string | null>(null);
   const [drillFeedbackByKey, setDrillFeedbackByKey] = useState<Record<string, DrillFeedbackState>>({});
-  const [slideState, setSlideState] = useState<SlideState>("idle");
+  const [drillSlideTransition, setDrillSlideTransition] = useState<DrillSlideTransition | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [timeSaved, setTimeSaved] = useState(0);
   const [timeBehind, setTimeBehind] = useState(0);
   const [paceNotification, setPaceNotification] = useState<PaceNotification | null>(null);
+  const [isPaceNotificationVisible, setIsPaceNotificationVisible] = useState(false);
+  const [paceAdjustmentsByDrillIndex, setPaceAdjustmentsByDrillIndex] = useState<Record<number, PaceAdjustment>>({});
+  const [selectedProgressSegmentIndex, setSelectedProgressSegmentIndex] = useState<number | null>(null);
   const [currentDrillOvertime, setCurrentDrillOvertime] = useState(0);  
   const [drillTitleFit, setDrillTitleFit] = useState<DrillTitleFit>({
     fontSizeRem: DEFAULT_DRILL_TITLE_FONT_SIZE_REM,
     shouldWrap: false,
   });
   const feedbackRef = useRef<HTMLDivElement | null>(null);
+  const practiceProgressRef = useRef<HTMLDivElement | null>(null);
   const drillTitleContainerRef = useRef<HTMLDivElement | null>(null);
   const drillTitleMeasureRef = useRef<HTMLSpanElement | null>(null);
   const elapsedPracticeMillisecondsRef = useRef(0);
   const drillTimeRemainingMillisecondsRef = useRef(0);
   const currentDrillOvertimeMillisecondsRef = useRef(0);
   const paceNotificationTimeoutRef = useRef<number | null>(null);
+  const paceNotificationDismissTimeoutRef = useRef<number | null>(null);
   const paceNotificationIdRef = useRef(0);
+  const drillSlideTimeoutRef = useRef<number | null>(null);
   useEffect(() => {
     if (!practiceId) {
       toast.error("No practice ID provided");
@@ -265,10 +288,21 @@ const RunPractice = () => {
   const netScheduleAbsSeconds = Math.abs(netScheduleSeconds);
 
   const clearPaceNotificationTimeout = useCallback(() => {
-    if (paceNotificationTimeoutRef.current === null) return;
+    if (paceNotificationTimeoutRef.current !== null) {
+      window.clearTimeout(paceNotificationTimeoutRef.current);
+      paceNotificationTimeoutRef.current = null;
+    }
+    if (paceNotificationDismissTimeoutRef.current !== null) {
+      window.clearTimeout(paceNotificationDismissTimeoutRef.current);
+      paceNotificationDismissTimeoutRef.current = null;
+    }
+  }, []);
 
-    window.clearTimeout(paceNotificationTimeoutRef.current);
-    paceNotificationTimeoutRef.current = null;
+  const clearDrillSlideTimeout = useCallback(() => {
+    if (drillSlideTimeoutRef.current === null) return;
+
+    window.clearTimeout(drillSlideTimeoutRef.current);
+    drillSlideTimeoutRef.current = null;
   }, []);
 
   const showPaceNotification = useCallback(
@@ -276,6 +310,7 @@ const RunPractice = () => {
       clearPaceNotificationTimeout();
 
       if (nextNetSeconds === 0) {
+        setIsPaceNotificationVisible(false);
         setPaceNotification(null);
         return;
       }
@@ -289,18 +324,25 @@ const RunPractice = () => {
 
       paceNotificationIdRef.current = nextNotification.id;
       setPaceNotification(nextNotification);
+      setIsPaceNotificationVisible(true);
 
       paceNotificationTimeoutRef.current = window.setTimeout(() => {
+        setIsPaceNotificationVisible(false);
+        paceNotificationTimeoutRef.current = null;
+      }, PACE_NOTIFICATION_DURATION_MS);
+
+      paceNotificationDismissTimeoutRef.current = window.setTimeout(() => {
         setPaceNotification((current) => (
           current?.id === nextNotification.id ? null : current
         ));
-        paceNotificationTimeoutRef.current = null;
-      }, PACE_NOTIFICATION_DURATION_MS);
+        paceNotificationDismissTimeoutRef.current = null;
+      }, PACE_NOTIFICATION_DURATION_MS + PACE_NOTIFICATION_EXIT_DURATION_MS);
     },
     [clearPaceNotificationTimeout]
   );
 
   useEffect(() => clearPaceNotificationTimeout, [clearPaceNotificationTimeout]);
+  useEffect(() => clearDrillSlideTimeout, [clearDrillSlideTimeout]);
 
   useEffect(() => {
     if (!practice) return;
@@ -410,12 +452,16 @@ const RunPractice = () => {
     setIsRunning(false);
     setTimeSaved(0);
     setTimeBehind(0);
+    setPaceAdjustmentsByDrillIndex({});
+    clearDrillSlideTimeout();
+    setDrillSlideTransition(null);
+    setIsAnimating(false);
     clearPaceNotificationTimeout();
     setPaceNotification(null);
     setCurrentDrillOvertime(0);
     setIsDrillDetailsOpen(false);
     setIsNextPreviewOpen(false);
-  }, [clearPaceNotificationTimeout, drillSequence, totalDurationMinutes]);
+  }, [clearDrillSlideTimeout, clearPaceNotificationTimeout, drillSequence, totalDurationMinutes]);
 
   const updateDrillFeedback = (key: string, updates: Partial<DrillFeedbackState>) => {
     setDrillFeedbackByKey((current) => {
@@ -430,11 +476,73 @@ const RunPractice = () => {
     });
   };
 
-  const handleLocalFeedbackSave = () => {
+  const handleLocalFeedbackSave = useCallback(() => {
     toast.success("Feedback saved locally for now");
-  };
+  }, []);
 
- const handleNextDrill = useCallback(() => {
+  const handleReturnFromFeedback = useCallback(() => {
+    setShowFeedback(false);
+  }, []);
+
+  const handleSaveFeedbackAndExit = useCallback(() => {
+    handleLocalFeedbackSave();
+    navigate("/");
+  }, [handleLocalFeedbackSave, navigate]);
+
+  const startDrillSlideTransition = useCallback(
+    (direction: DrillSlideDirection, toIndex: number, nextDrillDurationMilliseconds: number) => {
+      const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+      clearDrillSlideTimeout();
+      setIsAnimating(true);
+      setCurrentDrillIndex(toIndex);
+      drillTimeRemainingMillisecondsRef.current = nextDrillDurationMilliseconds;
+      currentDrillOvertimeMillisecondsRef.current = 0;
+      setDrillTimeRemaining(Math.ceil(nextDrillDurationMilliseconds / 1000));
+      setCurrentDrillOvertime(0);
+      setIsDrillDetailsOpen(false);
+      setIsNextPreviewOpen(false);
+
+      if (prefersReducedMotion) {
+        setDrillSlideTransition(null);
+        setIsAnimating(false);
+        return;
+      }
+
+      setDrillSlideTransition({
+        direction,
+        fromIndex: currentDrillIndex,
+        toIndex,
+        phase: "ready",
+        fromDrillTimeRemaining: drillTimeRemaining,
+        fromDrillOvertime: currentDrillOvertime,
+        fromDetailsOpen: isDrillDetailsOpen,
+      });
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setDrillSlideTransition((currentTransition) =>
+            currentTransition ? { ...currentTransition, phase: "sliding" } : currentTransition
+          );
+        });
+      });
+
+      drillSlideTimeoutRef.current = window.setTimeout(() => {
+        setDrillSlideTransition(null);
+        setIsAnimating(false);
+        drillSlideTimeoutRef.current = null;
+      }, DRILL_SLIDE_DURATION_MS);
+    },
+    [
+      clearDrillSlideTimeout,
+      currentDrillIndex,
+      currentDrillOvertime,
+      drillTimeRemaining,
+      isDrillDetailsOpen,
+    ]
+  );
+
+  const handleNextDrill = useCallback(() => {
     if (drillSequence.length === 0 || isAnimating) return;
     if (currentDrillIndex >= drillSequence.length - 1) {
       setDrillTimeRemaining(0);
@@ -456,74 +564,89 @@ const RunPractice = () => {
       setTimeBehind(nextTimeBehind);
     }
 
+    setPaceAdjustmentsByDrillIndex((current) => ({
+      ...current,
+      [currentDrillIndex]: {
+        savedSeconds: timeRemainingOnDrill,
+        behindSeconds: currentDrillOvertimeSeconds,
+      },
+    }));
+
     const paceEventSeconds = timeRemainingOnDrill > 0 ? timeRemainingOnDrill : currentDrillOvertimeSeconds;
     if (paceEventSeconds > 0) {
       const nextNetSeconds = nextTimeSaved - nextTimeBehind;
       showPaceNotification(paceEventSeconds, nextNetSeconds);
     }   
-    setIsAnimating(true);
-    setSlideState("next-exit");
 
-    // Reset overtime for next drill
-    currentDrillOvertimeMillisecondsRef.current = 0;
-    setCurrentDrillOvertime(0);
-    // After slide-out animation completes, update drill and prepare for slide in
-    setTimeout(() => {
-      const nextIndex = currentDrillIndex + 1;
-      const nextDrillDurationMilliseconds = (drillSequence[nextIndex]?.duration || 0) * 60 * 1000;
-      setCurrentDrillIndex(nextIndex);
-      drillTimeRemainingMillisecondsRef.current = nextDrillDurationMilliseconds;
-      setDrillTimeRemaining(Math.ceil(nextDrillDurationMilliseconds / 1000));
-      setIsDrillDetailsOpen(false);
-      setIsNextPreviewOpen(false);
-      setSlideState("next-enter");
-
-      // Use requestAnimationFrame to ensure the DOM has updated with the new position
-      // Then trigger the animation to slide into view
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setSlideState("idle");
-          // Give time for the slide-in animation to complete
-          setTimeout(() => {
-            setIsAnimating(false);
-          }, 300);
-        });
-      });
-    }, 300);
-  }, [currentDrillIndex, drillSequence, isAnimating, showPaceNotification, timeBehind, timeSaved]);
+    const nextIndex = currentDrillIndex + 1;
+    const nextDrillDurationMilliseconds = (drillSequence[nextIndex]?.duration || 0) * 60 * 1000;
+    startDrillSlideTransition("next", nextIndex, nextDrillDurationMilliseconds);
+  }, [
+    currentDrillIndex,
+    drillSequence,
+    isAnimating,
+    showPaceNotification,
+    startDrillSlideTransition,
+    timeBehind,
+    timeSaved,
+  ]);
 
   const handlePreviousDrill = useCallback(() => {
     if (drillSequence.length === 0 || isAnimating || currentDrillIndex <= 0) return;
 
     const previousIndex = currentDrillIndex - 1;
     const previousDrillDurationMilliseconds = (drillSequence[previousIndex]?.duration || 0) * 60 * 1000;
-    setIsAnimating(true);
-    setSlideState("previous-exit");
+    const adjustmentToReverse = paceAdjustmentsByDrillIndex[previousIndex];
 
-    setTimeout(() => {
-      setCurrentDrillIndex(previousIndex);
-      drillTimeRemainingMillisecondsRef.current = previousDrillDurationMilliseconds;
-      currentDrillOvertimeMillisecondsRef.current = 0;
-      setDrillTimeRemaining(Math.ceil(previousDrillDurationMilliseconds / 1000));
-      setCurrentDrillOvertime(0);
-      setIsDrillDetailsOpen(false);
-      setIsNextPreviewOpen(false);
-      setSlideState("previous-enter");
+    if (adjustmentToReverse) {
+      const nextTimeSaved = Math.max(0, timeSaved - adjustmentToReverse.savedSeconds);
+      const nextTimeBehind = Math.max(0, timeBehind - adjustmentToReverse.behindSeconds);
+      const nextNetSeconds = nextTimeSaved - nextTimeBehind;
 
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setSlideState("idle");
-          setTimeout(() => {
-            setIsAnimating(false);
-          }, 300);
-        });
+      setTimeSaved(nextTimeSaved);
+      setTimeBehind(nextTimeBehind);
+      setPaceAdjustmentsByDrillIndex((current) => {
+        const nextAdjustments = { ...current };
+        delete nextAdjustments[previousIndex];
+        return nextAdjustments;
       });
-    }, 300);
-  }, [currentDrillIndex, drillSequence, isAnimating]);
+      showPaceNotification(
+        adjustmentToReverse.savedSeconds || adjustmentToReverse.behindSeconds,
+        nextNetSeconds
+      );
+    }
+
+    startDrillSlideTransition("previous", previousIndex, previousDrillDurationMilliseconds);
+  }, [
+    currentDrillIndex,
+    drillSequence,
+    isAnimating,
+    paceAdjustmentsByDrillIndex,
+    showPaceNotification,
+    startDrillSlideTransition,
+    timeBehind,
+    timeSaved,
+  ]);
 
   const practiceProgress = totalDurationMilliseconds
     ? Math.max(0, Math.min(100, (elapsedPracticeMilliseconds / totalDurationMilliseconds) * 100))
     : 0;
+  const progressSegments = useMemo(
+    () =>
+      getPracticeProgressSegments({
+        drillSequence,
+        elapsedPracticeMilliseconds,
+        totalDurationMilliseconds,
+        currentDrillIndex,
+      }),
+    [currentDrillIndex, drillSequence, elapsedPracticeMilliseconds, totalDurationMilliseconds]
+  );
+  const selectedProgressSegment = selectedProgressSegmentIndex === null ? null : progressSegments[selectedProgressSegmentIndex];
+  const selectedProgressSegmentLabelPositionPercent = selectedProgressSegment
+    ? selectedProgressSegment.startPercent + selectedProgressSegment.widthPercent / 2
+    : 0;
+  const isFirstSelectedProgressSegment = selectedProgressSegmentIndex === 0;
+  const isLastSelectedProgressSegment = selectedProgressSegmentIndex === progressSegments.length - 1;
   const currentDrill = drillSequence[currentDrillIndex];
   const nextDrill = drillSequence[currentDrillIndex + 1];
   const isCurrentDrillFinished = Boolean(currentDrill) && drillTimeRemaining === 0;
@@ -538,7 +661,7 @@ const RunPractice = () => {
   const drillRemainingLabel = `${formatTimer(drillTimeRemaining)} remaining`;
   const currentDrillFocusLabel = formatFocusLabel(currentDrill?.focus);
   const nextDrillFocusLabel = formatFocusLabel(nextDrill?.focus);
-  const isLiveContentScrollable = isDrillDetailsOpen || isNextPreviewOpen;
+  const isRunContentScrollable = showFeedback || isDrillDetailsOpen || isNextPreviewOpen;
 
   const fitDrillTitleToAvailableWidth = useCallback(() => {
     const containerElement = drillTitleContainerRef.current;
@@ -558,7 +681,7 @@ const RunPractice = () => {
         ? currentFit
         : nextFit
     );
-  }, [currentDrillName]);
+  }, []);
 
   useLayoutEffect(() => {
     fitDrillTitleToAvailableWidth();
@@ -581,11 +704,37 @@ const RunPractice = () => {
       isMounted = false;
       resizeObserver.disconnect();
     };
-  }, [fitDrillTitleToAvailableWidth, slideState]);
+  }, [currentDrillName, drillSlideTransition, fitDrillTitleToAvailableWidth]);
 
   useEffect(() => {
-    if (loading || !practice || showFeedback) {
+    if (loading || !practice) {
       return registerMobileBottomAction(null);
+    }
+
+    if (showFeedback) {
+      return registerMobileBottomAction({
+        variant: "segmented",
+        active: true,
+        activeSegmentIndex: 1,
+        swipeEnabled: false,
+        segments: [
+          {
+            id: "feedback-return",
+            label: "Return",
+            compactLabel: "Return",
+            icon: <ChevronLeft className="h-5 w-5" />,
+            onClick: handleReturnFromFeedback,
+          },
+          {
+            id: "feedback-save",
+            label: "Save",
+            compactLabel: "Save",
+            icon: <Save className="h-5 w-5" />,
+            primary: true,
+            onClick: handleSaveFeedbackAndExit,
+          },
+        ],
+      });
     }
 
     const pauseResumeLabel = isRunning ? "Pause" : "Start";
@@ -629,6 +778,8 @@ const RunPractice = () => {
     currentDrillIndex,
     handleNextDrill,
     handlePreviousDrill,
+    handleReturnFromFeedback,
+    handleSaveFeedbackAndExit,
     handleToggleTimer,
     isAnimating,
     isLastDrill,
@@ -639,6 +790,196 @@ const RunPractice = () => {
     showFeedback,
     totalTimeRemaining,
   ]);
+
+  useEffect(() => {
+    if (selectedProgressSegmentIndex === null) return;
+
+    const handleOutsideProgressPointerDown = (event: PointerEvent) => {
+      if (
+        practiceProgressRef.current &&
+        practiceProgressRef.current.contains(event.target as Node)
+      ) {
+        return;
+      }
+
+      setSelectedProgressSegmentIndex(null);
+    };
+
+    document.addEventListener("pointerdown", handleOutsideProgressPointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideProgressPointerDown);
+    };
+  }, [selectedProgressSegmentIndex]);
+
+  const renderLiveDrillCard = (
+    drillIndex: number,
+    isActiveCard = true,
+    detailsOpen = isDrillDetailsOpen
+  ) => {
+    const drill = drillSequence[drillIndex];
+    const drillName = drill?.name || "No drills in this practice";
+    const drillFocusLabel = formatFocusLabel(drill?.focus);
+    const displayedDrillTimeRemaining = isActiveCard
+      ? drillTimeRemaining
+      : drillSlideTransition?.fromDrillTimeRemaining ?? drillTimeRemaining;
+    const displayedCurrentDrillOvertime = isActiveCard
+      ? currentDrillOvertime
+      : drillSlideTransition?.fromDrillOvertime ?? currentDrillOvertime;
+    const shouldShowFinishedDrillAction = isActiveCard && isCurrentDrillFinished && !showFeedback;
+
+    return (
+      <div>
+        <div className="flex items-start justify-between gap-3">
+          <div ref={isActiveCard ? drillTitleContainerRef : undefined} className="relative min-w-0 flex-1">
+            <h2
+              className={cn(
+                "font-bold leading-[1.05] tracking-normal transition-[font-size]",
+                drillTitleFit.shouldWrap ? "line-clamp-2 whitespace-normal" : "whitespace-nowrap"
+              )}
+              style={{ fontSize: `${drillTitleFit.fontSizeRem}rem` }}
+            >
+              {drillName}
+            </h2>
+            <span
+              ref={isActiveCard ? drillTitleMeasureRef : undefined}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0 top-0 -z-10 whitespace-nowrap font-bold leading-[1.05] tracking-normal opacity-0"
+              style={{ fontSize: `${DEFAULT_DRILL_TITLE_FONT_SIZE_REM}rem` }}
+            >
+              {drillName}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="mt-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            onClick={() => isActiveCard && setIsDrillDetailsOpen((open) => !open)}
+            aria-label={detailsOpen ? "Collapse drill details" : "Expand drill details"}
+            tabIndex={isActiveCard ? 0 : -1}
+          >
+            {detailsOpen ? <ChevronUp className="h-7 w-7" /> : <ChevronDown className="h-7 w-7" />}
+          </button>
+        </div>
+        <div className="mt-5 flex w-full max-w-full touch-pan-x flex-nowrap overflow-x-auto overscroll-x-contain items-center gap-2 pb-1 pr-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {drill?.segment && (
+            <Badge variant="outline" className="h-8 shrink-0 border-border bg-muted/35 px-3 py-0 text-[1.05rem] font-medium leading-none text-muted-foreground">
+              {formatSegmentLabel(drill.segment)}
+            </Badge>
+          )}
+          {drillSequence.length > 0 && (
+            <Badge variant="outline" className="h-8 shrink-0 border-border bg-muted/35 px-3 py-0 text-[1.05rem] font-medium leading-none text-muted-foreground">
+              {drillIndex + 1} of {drillSequence.length}
+            </Badge>
+          )}
+          {drill?.focus && (
+            <Badge variant="outline" className="h-8 shrink-0 border-primary/50 bg-primary/10 px-3 py-0 text-[1.05rem] font-medium leading-none text-primary">
+              {drillFocusLabel}
+            </Badge>
+          )}
+        </div>
+
+        <div className="mt-6">
+          <div className="flex w-full flex-wrap items-baseline gap-2 overflow-visible">
+            <span className="shrink-0 text-[3.825rem] font-bold leading-none tracking-normal tabular-nums">
+              {formatTimer(displayedDrillTimeRemaining)}
+            </span>
+            <span className="shrink-0 pb-2 text-[1.35rem] font-medium text-muted-foreground">remaining</span>
+            {shouldShowFinishedDrillAction && (
+              <Button
+                type="button"
+                size="sm"
+                className="mb-2 ml-1 h-8 shrink-0 gap-1.5 rounded-full px-3 text-xs font-semibold"
+                onClick={() => hasNextDrill ? handleNextDrill() : handleEndTimer()}
+                disabled={isAnimating || drillSequence.length === 0}
+                aria-label={finishedDrillActionLabel}
+              >
+                {finishedDrillActionLabel}
+                {hasNextDrill ? (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            )}
+          </div>
+          <p className="sr-only">{drillRemainingLabel}</p>
+          {displayedCurrentDrillOvertime > 0 && (
+            <p className="mt-1 inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-500">
+              {formatTimer(displayedCurrentDrillOvertime)} overtime
+            </p>
+          )}
+        </div>
+
+        {detailsOpen && drill && (
+          <div className="mt-6 space-y-3 rounded-[8px] border border-border bg-card/80 px-4 py-4 text-base leading-7 text-muted-foreground">
+            {drill.description && <p>{drill.description}</p>}
+            {drill.explainWhy && (
+              <p>
+                <span className="font-medium text-foreground">Why:</span> {drill.explainWhy}
+              </p>
+            )}
+            {drill.cues && drill.cues.length > 0 && (
+              <div>
+                <p className="mb-1 font-medium text-foreground">Cues</p>
+                <ul className="space-y-1">
+                  {drill.cues.map((cue, index) => (
+                    <li key={`${cue}-${index}`} className="flex gap-2">
+                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" />
+                      <span>{cue}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {drill.tags && drill.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {drill.tags.slice(0, 5).map((tag) => (
+                  <Badge key={tag} variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {drill.mediaUrl && (
+              <a
+                href={drill.mediaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary"
+              >
+                View drill resource
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const drillCardBaseClassName =
+    "col-start-1 row-start-1 min-w-0 translate-x-0 transition-transform duration-300 ease-out motion-reduce:transition-none";
+  const outgoingDrillCardClassName = cn(
+    drillCardBaseClassName,
+    "pointer-events-none",
+    drillSlideTransition &&
+      drillSlideTransition.phase === "sliding" &&
+      drillSlideTransition.direction === "next" && "-translate-x-full",
+    drillSlideTransition &&
+      drillSlideTransition.phase === "sliding" &&
+      drillSlideTransition.direction === "previous" && "translate-x-full"
+  );
+  const incomingDrillCardClassName = cn(
+    drillCardBaseClassName,
+    drillSlideTransition &&
+      drillSlideTransition.phase === "ready" &&
+      drillSlideTransition.direction === "next" && "translate-x-full",
+    drillSlideTransition &&
+      drillSlideTransition.phase === "ready" &&
+      drillSlideTransition.direction === "previous" && "-translate-x-full",
+    drillSlideTransition && drillSlideTransition.phase === "sliding" && "translate-x-0"
+  );
+  const activeDrillCardKey = `active-${currentDrillIndex}`;
 
   if (loading) {
     return (
@@ -676,50 +1017,61 @@ const RunPractice = () => {
   return (
     <div
       className={cn(
-        "mx-auto h-[calc(100dvh-var(--app-safe-area-top)-4.75rem-var(--app-safe-area-bottom))] max-w-md text-foreground",
-        isLiveContentScrollable ? "overflow-y-auto pb-2" : "overflow-hidden pb-0"
+        "mx-auto h-[calc(100dvh-var(--app-safe-area-top)-4.75rem-var(--app-safe-area-bottom))] w-full max-w-md overflow-x-hidden overscroll-x-none scrollbar-none text-foreground",
+        isRunContentScrollable ? "overflow-y-auto pb-2" : "overflow-hidden pb-0",
+        showFeedback && "touch-pan-y"
       )}
     >
-      <div
-        className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ease-out ${
-          paceNotification
-            ? "opacity-100 translate-y-0"
-            : "opacity-0 -translate-y-4 pointer-events-none"
-        }`}
-      >
+      {paceNotification && (
         <div
-          className={cn(
-            "flex items-center gap-2 rounded-full border px-4 py-2 text-white shadow-sm",
-            paceNotification?.kind === "ahead"
-              ? "border-green-500/40 bg-green-600"
-              : "border-red-500/40 bg-red-600"
-          )}
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ease-out ${
+            isPaceNotificationVisible
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 -translate-y-4 pointer-events-none"
+          }`}
         >
-          {paceNotification?.kind === "ahead" ? (
-            <Zap className="h-4 w-4" />
-          ) : (
-            <Clock className="h-4 w-4" />
-          )}
-          <div className="text-center">
-            <p className="text-sm font-semibold">
-              {paceNotification?.kind === "ahead" ? "Ahead of schedule" : "Behind schedule"}
-            </p>
-            <p
-              className={cn(
-                "text-xs",
-                paceNotification?.kind === "ahead" ? "text-green-100" : "text-red-100"
-              )}
-            >
-              You're now {formatTimer(paceNotification ? paceNotification.netSeconds : 0)}{" "}
-              {paceNotification?.kind === "ahead" ? "ahead" : "behind"} of schedule
-            </p>
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-full border px-4 py-2 text-white shadow-sm",
+              paceNotification.kind === "ahead"
+                ? "border-green-500/40 bg-green-600"
+                : "border-red-500/40 bg-red-600"
+            )}
+          >
+            {paceNotification.kind === "ahead" ? (
+              <Zap className="h-4 w-4" />
+            ) : (
+              <Clock className="h-4 w-4" />
+            )}
+            <div className="text-center">
+              <p className="text-sm font-semibold">
+                {paceNotification.kind === "ahead" ? "Ahead of schedule" : "Behind schedule"}
+              </p>
+              <p
+                className={cn(
+                  "text-xs",
+                  paceNotification.kind === "ahead" ? "text-green-100" : "text-red-100"
+                )}
+              >
+                You're now {formatTimer(paceNotification.netSeconds)}{" "}
+                {paceNotification.kind === "ahead" ? "ahead" : "behind"} of schedule
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <section>
         <div>
-          <div className="grid min-h-[5.75rem] grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-border/70 pb-6 pt-4">
+          <div className="relative mt-8 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-border/70 pb-1 pt-4">
+            <button
+              type="button"
+              className="absolute -top-8 left-0 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted/35 text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
             <h1 className="min-w-0 truncate text-[2rem] font-bold leading-tight tracking-normal">
               {practiceDisplayTitle}
             </h1>
@@ -728,205 +1080,97 @@ const RunPractice = () => {
             </span>
           </div>
 
-          <div
-            className="mt-5 h-2.5 overflow-hidden rounded-full bg-muted/70"
-            aria-label={`Practice ${Math.round(practiceProgress)}% complete`}
-          >
-            <div className="flex h-full w-full">
-              {drillSequence.length > 0 ? (
-                (() => {
-                  let elapsedMillisecondsBeforeSegment = 0;
+          <div ref={practiceProgressRef} className="relative">
+            <div
+              className="mt-5 h-2.5 overflow-hidden rounded-full bg-muted/70"
+              aria-label={`Practice ${Math.round(practiceProgress)}% complete`}
+            >
+              <div className="flex h-full w-full">
+                {drillSequence.length > 0 ? (
+                  progressSegments.map((progressSegment, index) => {
+                      const mutedClass =
+                        progressSegment.segment === "Warmup"
+                          ? "bg-secondary/20"
+                          : progressSegment.segment === "Cool Down"
+                            ? "bg-foreground/15"
+                            : "bg-primary/20";
+                      const fillClass =
+                        progressSegment.segment === "Warmup"
+                          ? "bg-secondary"
+                          : progressSegment.segment === "Cool Down"
+                            ? "bg-foreground/55"
+                            : "bg-primary";
 
-                  return drillSequence.map((drill, index) => {
-                    const drillDurationSeconds = (drill.duration || 0) * 60;
-                    const drillDurationMilliseconds = drillDurationSeconds * 1000;
-                    const drillWidthPercent = totalDurationSeconds > 0
-                      ? (drillDurationSeconds / totalDurationSeconds) * 100
-                      : 0;
-                    const elapsedMillisecondsAtSegmentStart = elapsedMillisecondsBeforeSegment;
-                    const elapsedMillisecondsInSegment = Math.max(
-                      0,
-                      Math.min(
-                        elapsedPracticeMilliseconds - elapsedMillisecondsAtSegmentStart,
-                        drillDurationMilliseconds
-                      )
-                    );
-                    const segmentFillPercent = drillDurationMilliseconds > 0
-                      ? (elapsedMillisecondsInSegment / drillDurationMilliseconds) * 100
-                      : 0;
-
-                    elapsedMillisecondsBeforeSegment += drillDurationMilliseconds;
-
-                    const mutedClass =
-                      drill.segment === "Warmup"
-                        ? "bg-secondary/20"
-                        : drill.segment === "Cool Down"
-                          ? "bg-foreground/15"
-                          : "bg-primary/20";
-                    const fillClass =
-                      drill.segment === "Warmup"
-                        ? "bg-secondary"
-                        : drill.segment === "Cool Down"
-                          ? "bg-foreground/55"
-                          : "bg-primary";
-                    
-                    return (
-                      <div
-                        key={index}
-                        className={cn(
-                          "h-full overflow-hidden",
-                          mutedClass,
-                          index < drillSequence.length - 1 && "border-r border-background/80"
-                        )}
-                        style={{ width: `${drillWidthPercent}%` }}
-                        title={`${drill.name} (${drill.duration} min) - ${drill.segment}`}
-                      >
-                        <div
-                          className={cn("h-full transition-all duration-500", fillClass)}
-                          style={{ width: `${Math.max(0, Math.min(100, segmentFillPercent))}%` }}
-                        />
-                      </div>
-                    );
-                  });
-                })()
-              ) : (
-                <div className="h-full bg-primary" style={{ width: `${practiceProgress}%` }} />
-              )}
+                      return (
+                        <button
+                          key={index}
+                          type="button"
+                          aria-current={progressSegment.isActive ? "step" : undefined}
+                          aria-label={`Show drill ${progressSegment.name || "Drill"}`}
+                          aria-pressed={selectedProgressSegmentIndex === index}
+                          className={cn(
+                            "relative h-full overflow-hidden border-0 p-0 text-left",
+                            mutedClass,
+                            progressSegment.isActive && "ring-2 ring-inset ring-primary/80",
+                            index < drillSequence.length - 1 && "border-r border-background/80"
+                          )}
+                          onClick={() =>
+                            setSelectedProgressSegmentIndex((currentIndex) => (currentIndex === index ? null : index))
+                          }
+                          style={{ width: `${progressSegment.widthPercent}%` }}
+                          title={`${progressSegment.name} (${progressSegment.duration} min) - ${progressSegment.segment}`}
+                        >
+                          <div
+                            className={cn("h-full transition-all duration-500", fillClass)}
+                            style={{ width: `${progressSegment.fillPercent}%` }}
+                          />
+                        </button>
+                      );
+                    })
+                ) : (
+                  <div className="h-full bg-primary" style={{ width: `${practiceProgress}%` }} />
+                )}
+              </div>
             </div>
+            {selectedProgressSegment?.name && (
+              <p
+                className={cn(
+                  "absolute top-full mt-2 flex max-w-[min(18rem,100%)] items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground",
+                  isFirstSelectedProgressSegment ? "left-0" : isLastSelectedProgressSegment ? "right-0" : "-translate-x-1/2"
+                )}
+                style={isFirstSelectedProgressSegment || isLastSelectedProgressSegment
+                  ? undefined
+                  : { left: `${selectedProgressSegmentLabelPositionPercent}%` }}
+              >
+                <span className="min-w-0 truncate">{selectedProgressSegment.name}</span>
+                <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">•</span>
+                <span className="shrink-0">{selectedProgressSegment.duration} min</span>
+              </p>
+            )}
           </div>
         </div>
 
         <div className="mt-11 overflow-hidden border-b border-border/70 pb-10">
-          <div
-            className={cn(
-              "transition-all duration-300 ease-out",
-              slideState === "next-exit" && "-translate-x-full opacity-0",
-              slideState === "next-enter" && "translate-x-full opacity-0",
-              slideState === "previous-exit" && "translate-x-full opacity-0",
-              slideState === "previous-enter" && "-translate-x-full opacity-0",
-              slideState === "idle" && "translate-x-0 opacity-100"
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div ref={drillTitleContainerRef} className="relative min-w-0 flex-1">
-                <h2
-                  className={cn(
-                    "font-bold leading-[1.05] tracking-normal transition-[font-size]",
-                    drillTitleFit.shouldWrap ? "line-clamp-2 whitespace-normal" : "whitespace-nowrap"
+          <div className="grid overflow-hidden">
+            {drillSlideTransition ? (
+              <>
+                <div
+                  key={`outgoing-${drillSlideTransition.fromIndex}-${drillSlideTransition.toIndex}-${drillSlideTransition.direction}`}
+                  className={outgoingDrillCardClassName}
+                >
+                  {renderLiveDrillCard(
+                    drillSlideTransition.fromIndex,
+                    false,
+                    drillSlideTransition.fromDetailsOpen
                   )}
-                  style={{ fontSize: `${drillTitleFit.fontSizeRem}rem` }}
-                >
-                  {currentDrillName}
-                </h2>
-                <span
-                  ref={drillTitleMeasureRef}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute left-0 top-0 -z-10 whitespace-nowrap font-bold leading-[1.05] tracking-normal opacity-0"
-                  style={{ fontSize: `${DEFAULT_DRILL_TITLE_FONT_SIZE_REM}rem` }}
-                >
-                  {currentDrillName}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="mt-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                onClick={() => setIsDrillDetailsOpen((open) => !open)}
-                aria-label={isDrillDetailsOpen ? "Collapse drill details" : "Expand drill details"}
-              >
-                {isDrillDetailsOpen ? <ChevronUp className="h-7 w-7" /> : <ChevronDown className="h-7 w-7" />}
-              </button>
-            </div>
-            <div className="mt-5 flex w-full max-w-full touch-pan-x flex-nowrap overflow-x-auto overscroll-x-contain items-center gap-2 pb-1 pr-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {currentDrill?.segment && (
-                <Badge variant="outline" className="h-8 shrink-0 border-border bg-muted/35 px-3 py-0 text-[1.05rem] font-medium leading-none text-muted-foreground">
-                  {formatSegmentLabel(currentDrill.segment)}
-                </Badge>
-              )}
-              {drillSequence.length > 0 && (
-                <Badge variant="outline" className="h-8 shrink-0 border-border bg-muted/35 px-3 py-0 text-[1.05rem] font-medium leading-none text-muted-foreground">
-                  {currentDrillIndex + 1} of {drillSequence.length}
-                </Badge>
-              )}
-              {currentDrill?.focus && (
-                <Badge variant="outline" className="h-8 shrink-0 border-primary/50 bg-primary/10 px-3 py-0 text-[1.05rem] font-medium leading-none text-primary">
-                  {currentDrillFocusLabel}
-                </Badge>
-              )}
-            </div>
-
-            <div className="mt-6">
-              <div className="flex w-full flex-wrap items-baseline gap-2 overflow-visible">
-                <span className="shrink-0 text-[3.825rem] font-bold leading-none tracking-normal tabular-nums">
-                  {formatTimer(drillTimeRemaining)}
-                </span>
-                <span className="shrink-0 pb-2 text-[1.35rem] font-medium text-muted-foreground">remaining</span>
-                {isCurrentDrillFinished && !showFeedback && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="mb-2 ml-1 h-8 shrink-0 gap-1.5 rounded-full px-3 text-xs font-semibold"
-                    onClick={() => hasNextDrill ? handleNextDrill() : handleEndTimer()}
-                    disabled={isAnimating || drillSequence.length === 0}
-                    aria-label={finishedDrillActionLabel}
-                  >
-                    {finishedDrillActionLabel}
-                    {hasNextDrill ? (
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    ) : (
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                )}
-              </div>
-              <p className="sr-only">{drillRemainingLabel}</p>
-              {currentDrillOvertime > 0 && (
-                <p className="mt-1 inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-500">
-                  {formatTimer(currentDrillOvertime)} overtime
-                </p>
-              )}
-            </div>
-
-            {isDrillDetailsOpen && currentDrill && (
-              <div className="mt-6 space-y-3 rounded-[8px] border border-border bg-card/80 px-4 py-4 text-base leading-7 text-muted-foreground">
-                {currentDrill.description && <p>{currentDrill.description}</p>}
-                {currentDrill.explainWhy && (
-                  <p>
-                    <span className="font-medium text-foreground">Why:</span> {currentDrill.explainWhy}
-                  </p>
-                )}
-                {currentDrill.cues && currentDrill.cues.length > 0 && (
-                  <div>
-                    <p className="mb-1 font-medium text-foreground">Cues</p>
-                    <ul className="space-y-1">
-                      {currentDrill.cues.map((cue, index) => (
-                        <li key={`${cue}-${index}`} className="flex gap-2">
-                          <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                          <span>{cue}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {currentDrill.tags && currentDrill.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {currentDrill.tags.slice(0, 5).map((tag) => (
-                      <Badge key={tag} variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                {currentDrill.mediaUrl && (
-                  <a
-                    href={currentDrill.mediaUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary"
-                  >
-                    View drill resource
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                )}
+                </div>
+                <div key={activeDrillCardKey} className={incomingDrillCardClassName}>
+                  {renderLiveDrillCard(drillSlideTransition.toIndex)}
+                </div>
+              </>
+            ) : (
+              <div key={activeDrillCardKey} className={incomingDrillCardClassName}>
+                {renderLiveDrillCard(currentDrillIndex)}
               </div>
             )}
           </div>
@@ -1041,8 +1285,11 @@ const RunPractice = () => {
       </section>
 
       {showFeedback && (
-        <div ref={feedbackRef} className="-mx-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:-mx-6 md:mx-0">
-          <section className="overflow-hidden bg-background text-foreground">
+          <div
+            ref={feedbackRef}
+            className="w-full max-w-full overflow-x-hidden overscroll-x-none touch-pan-y pb-[env(safe-area-inset-bottom)]"
+          >
+          <section className="w-full max-w-full overflow-hidden bg-background text-foreground">
             <div className="space-y-6 px-4 py-6 sm:px-6 sm:py-7 md:px-8">
               <div className="space-y-5">
                 <h2 className="whitespace-nowrap text-[2.05rem] font-bold leading-[1.05] tracking-normal text-foreground sm:text-[2.35rem]">
@@ -1089,7 +1336,7 @@ const RunPractice = () => {
                         className={`h-12 rounded-full border px-4 text-base font-medium transition ${
                           isSelected
                             ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background text-muted-foreground"
+                            : "border-border bg-card text-muted-foreground"
                         }`}
                         onClick={() => setOverallEngagement(option.value)}
                       >
@@ -1107,12 +1354,12 @@ const RunPractice = () => {
                     onChange={(event) => setOverallNote(event.target.value)}
                     placeholder="Add note"
                     autoFocus
-                    className="min-h-28 resize-none rounded-[8px] border-border bg-background px-4 py-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                    className="min-h-28 resize-none rounded-[8px] border-border bg-card px-4 py-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                   />
                 ) : (
                   <button
                     type="button"
-                    className="flex min-h-16 w-full items-center gap-3 rounded-[8px] border border-border bg-background px-4 text-left text-primary transition hover:border-primary/60 hover:bg-primary/5"
+                    className="flex min-h-16 w-full items-center gap-3 rounded-[8px] border border-border bg-card px-4 text-left text-primary transition hover:border-primary/60 hover:bg-muted/60"
                     onClick={() => setIsOverallNoteOpen(true)}
                   >
                     <PencilLine className="h-5 w-5" />
@@ -1139,7 +1386,7 @@ const RunPractice = () => {
                         return (
                           <article
                             key={key}
-                            className={`overflow-hidden rounded-[8px] border bg-background transition ${
+                            className={`overflow-hidden rounded-[8px] border bg-card transition ${
                               isExpanded
                                 ? "border-primary"
                                 : "border-border"
@@ -1162,7 +1409,7 @@ const RunPractice = () => {
                                   className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
                                     feedback.quickRating === "down"
                                       ? "border-primary bg-primary/10 text-primary"
-                                      : "border-border bg-background text-muted-foreground"
+                                      : "border-border bg-card text-muted-foreground"
                                   }`}
                                   onClick={() =>
                                     updateDrillFeedback(key, {
@@ -1178,7 +1425,7 @@ const RunPractice = () => {
                                   className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
                                     feedback.quickRating === "up"
                                       ? "border-primary bg-primary/10 text-primary"
-                                      : "border-border bg-background text-muted-foreground"
+                                      : "border-border bg-card text-muted-foreground"
                                   }`}
                                   onClick={() =>
                                     updateDrillFeedback(key, {
@@ -1191,7 +1438,7 @@ const RunPractice = () => {
                                 </button>
                                 <button
                                   type="button"
-                                  className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-foreground transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                                   onClick={() => setExpandedDrillKey(isExpanded ? null : key)}
                                   aria-label={isExpanded ? `Collapse ${drill.name}` : `Expand ${drill.name}`}
                                 >
@@ -1218,7 +1465,7 @@ const RunPractice = () => {
                                           className={`h-10 rounded-full border px-3 text-base font-medium transition ${
                                             isSelected
                                               ? "border-primary bg-primary/10 text-primary"
-                                              : "border-border bg-background text-muted-foreground"
+                                              : "border-border bg-card text-muted-foreground"
                                           }`}
                                           onClick={() =>
                                             updateDrillFeedback(key, {
@@ -1241,7 +1488,7 @@ const RunPractice = () => {
                                     })
                                   }
                                   placeholder="add feedback"
-                                  className="min-h-24 resize-none rounded-[8px] border-border bg-background px-4 py-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+                                  className="min-h-24 resize-none rounded-[8px] border-border bg-card px-4 py-4 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                                 />
                               </div>
                             )}
@@ -1253,14 +1500,25 @@ const RunPractice = () => {
                 ))}
               </div>
 
-              <Button
-                type="button"
-                size="lg"
-                className="h-14 w-full rounded-[8px] bg-primary text-primary-foreground hover:bg-primary/90 text-base font-semibold"
-                onClick={handleLocalFeedbackSave}
-              >
-                Save Feedback
-              </Button>
+              <div className="hidden grid-cols-2 gap-3 md:grid">
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  className="h-14 rounded-[8px] text-base font-semibold"
+                  onClick={handleReturnFromFeedback}
+                >
+                  Return
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="h-14 rounded-[8px] bg-primary text-primary-foreground hover:bg-primary/90 text-base font-semibold"
+                  onClick={handleSaveFeedbackAndExit}
+                >
+                  Save
+                </Button>
+              </div>
             </div>
           </section>
         </div>

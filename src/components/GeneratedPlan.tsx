@@ -74,7 +74,7 @@ const SortableDrillCard = ({
       style={style}
       className={cn(
         "group relative transition-shadow",
-        isDragging ? "shadow-xl" : "hover:shadow-xl"
+        isDragging ? "z-20 shadow-xl" : "hover:shadow-xl"
       )}
     >
       <DrillCard

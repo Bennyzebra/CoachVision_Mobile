@@ -18,3 +18,10 @@ test("GeneratedPlan leaves mobile save action ownership to the bottom bar", () =
   assert.match(generatedPlanSource, /Save and Continue to Practice/);
   assert.match(generatedPlanSource, /Saving\.\.\./);
 });
+
+test("GeneratedPlan lifts the active dragged drill above neighboring cards", () => {
+  assert.match(
+    generatedPlanSource,
+    /isDragging \? "z-20 shadow-xl" : "hover:shadow-xl"/
+  );
+});
