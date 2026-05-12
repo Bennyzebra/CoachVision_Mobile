@@ -2,9 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://cjonngxtjunqdgvvtwfq.supabase.co';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqb25uZ3h0anVucWRndnZ0d2ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NDg0MTQsImV4cCI6MjA3NzEyNDQxNH0.0s9PYIU7OqarWEUg3ftS5UY5fObsaGgg_xvCXlkRt9Y';
+const supabasePublishableKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_iqyu9uOuvORtGFln9qfuhA__gFQrdVU';
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabasePublishableKey);
 
 async function executeBatch(batchNumber) {
   const filename = `./drill_batch_${batchNumber}.sql`;
