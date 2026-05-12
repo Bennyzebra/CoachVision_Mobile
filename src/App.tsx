@@ -79,7 +79,7 @@ const App = () => (
               <p className="mt-3 text-sm text-muted-foreground">
                 This app needs Supabase environment variables to load data and authenticate users. Set
                 <span className="font-medium text-foreground"> VITE_SUPABASE_URL</span> and
-                <span className="font-medium text-foreground"> VITE_SUPABASE_ANON_KEY</span>, then
+                <span className="font-medium text-foreground"> VITE_SUPABASE_PUBLISHABLE_KEY</span>, then
                 restart the dev server.
               </p>
             </div>
