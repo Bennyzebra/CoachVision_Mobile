@@ -4,26 +4,25 @@ import assert from "node:assert/strict";
 
 const autoPlanSource = readFileSync(new URL("./AutoPlan.tsx", import.meta.url), "utf8");
 
-test("AutoPlan generated plan actions show create and export icon buttons", () => {
+test("AutoPlan generated plan actions show create and native share export buttons", () => {
   assert.match(autoPlanSource, /PlusCircle/);
-  assert.match(autoPlanSource, /Download/);
+  assert.match(autoPlanSource, /Share2/);
   assert.match(autoPlanSource, /Create New Plan/);
   assert.match(autoPlanSource, /Export/);
 });
 
-test("AutoPlan export view matches the generated practice export mockup structure", () => {
-  assert.match(autoPlanSource, /isGeneratedPlanExportView/);
+test("AutoPlan practice overview Export button opens the native share flow directly", () => {
   assert.match(autoPlanSource, /formatPracticeExportDate/);
   assert.match(autoPlanSource, /formatPracticeExportMonthDate/);
-  assert.match(autoPlanSource, /PRACTICE DESCRIPTION/);
-  assert.match(autoPlanSource, /Print/);
-  assert.match(autoPlanSource, /Download PDF/);
-  assert.match(autoPlanSource, /Share/);
-  assert.match(autoPlanSource, /Practice Length/);
-  assert.match(autoPlanSource, /Focus Intensity/);
-  assert.match(autoPlanSource, /handlePrintPracticePlan/);
-  assert.match(autoPlanSource, /handleDownloadPracticePdf/);
   assert.match(autoPlanSource, /handleSharePracticePlan/);
+  assert.match(
+    autoPlanSource,
+    /<Button[\s\S]*?onClick=\{handleSharePracticePlan\}[\s\S]*?<Share2 className="h-4 w-4" \/>[\s\S]*?Export[\s\S]*?<\/Button>/
+  );
+  assert.doesNotMatch(autoPlanSource, /setIsGeneratedPlanExportView\(true\)/);
+  assert.doesNotMatch(autoPlanSource, /handlePrintPracticePlan/);
+  assert.doesNotMatch(autoPlanSource, /handleDownloadPracticePdf/);
+  assert.doesNotMatch(autoPlanSource, /Download PDF/);
 });
 
 test("AutoPlan shows a focused generation overlay with progress and revision controls", () => {

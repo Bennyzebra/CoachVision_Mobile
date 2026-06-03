@@ -208,8 +208,6 @@ const PracticeTracker = () => {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <p className="text-muted-foreground">Browse, edit, and reuse your historical practices.</p>
-
       <Card className="rounded-xl">
         <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
           <CardTitle>Filters</CardTitle>
@@ -270,10 +268,7 @@ const PracticeTracker = () => {
       </Card>
 
       <Card className="rounded-xl">
-        <CardHeader className="p-4 sm:p-6">
-          <CardTitle>Practice History</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+        <CardContent className="p-4 sm:p-6">
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((item) => (

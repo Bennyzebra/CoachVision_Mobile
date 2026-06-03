@@ -8,6 +8,7 @@
     "dev": "npm run check:workspace && vite",
     "build": "npm run check:workspace && vite build",
     "build:dev": "npm run check:workspace && vite build --mode development",
+    "ios:copy": "npm run build && npx cap copy ios",
     "lint": "eslint .",
     "preview": "npm run check:workspace && vite preview"
   },

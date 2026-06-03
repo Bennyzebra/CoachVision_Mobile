@@ -22,7 +22,7 @@ test("AutoPlan only registers the generated plan action while the generated prac
   assert.match(autoPlanSource, /useLocation/);
   assert.match(
     autoPlanSource,
-    /const isGeneratedPlanBottomActionVisible =\s+Boolean\(generatedPlan\) && !isGeneratedPlanExportView && location\.pathname === "\/"/
+    /const isGeneratedPlanBottomActionVisible =\s+Boolean\(generatedPlan\) && location\.pathname === "\/"/
   );
   assert.match(
     autoPlanSource,

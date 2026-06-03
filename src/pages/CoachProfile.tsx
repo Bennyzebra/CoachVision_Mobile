@@ -10,6 +10,8 @@ import { CoachProfile as CoachProfileType, SharedItem } from "@/types/community"
 import { MapPin, Award, Calendar, Users, UserPlus, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Unknown error");
+
 export default function CoachProfile() {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -51,7 +53,7 @@ export default function CoachProfile() {
       setProfile({
         ...profileData,
         display_name: profileData.coach_name ?? "Coach",
-        org: (profileData as any).organization ?? (profileData as any).org,
+        org: profileData.organization ?? ((profileData as Record<string, unknown>).org as string | undefined),
         followers_count: profileData.followers_count ?? 0,
         following_count: profileData.following_count ?? 0,
         badges: profileData.badges ?? [],
@@ -79,10 +81,10 @@ export default function CoachProfile() {
         .in("visibility", user?.id === userId ? ["public", "followers", "private"] : ["public"])
         .order("created_at", { ascending: false });
 
-      setItems((itemsData as any) || []);
-    } catch (error: any) {
+      setItems((itemsData as SharedItem[] | null) || []);
+    } catch (error: unknown) {
       toast.error("Failed to load profile");
-      console.error(error);
+      console.error(getErrorMessage(error), error);
     } finally {
       setLoading(false);
     }

@@ -22,14 +22,6 @@ import {
   Pencil,
   Star,
   PlusCircle,
-  Download,
-  CalendarDays,
-  ChevronRight,
-  Clock3,
-  FileDown,
-  FileText,
-  Gauge,
-  Printer,
   Share2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -189,7 +181,6 @@ const AutoPlan = () => {
   const [practiceTitleEditValue, setPracticeTitleEditValue] = useState("");
   const [isEditingPracticeTitle, setIsEditingPracticeTitle] = useState(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedPracticePlan | null>(null);
-  const [isGeneratedPlanExportView, setIsGeneratedPlanExportView] = useState(false);
   const { registerMobileBottomAction } = useMobileBottomAction();
    
   // Search-driven planning state
@@ -271,12 +262,6 @@ const AutoPlan = () => {
     }
   }, [generatedPlan]); 
 
-  useEffect(() => {
-    if (!generatedPlan) {
-      setIsGeneratedPlanExportView(false);
-    }
-  }, [generatedPlan]);
-  
   useEffect(() => {
 
     if (typeof window === "undefined") return;
@@ -1089,7 +1074,7 @@ const AutoPlan = () => {
   }, [currentTeam?.id, duration, generatedPlan, navigate, practiceTitle, user]);
 
   const isGeneratedPlanBottomActionVisible =
-    Boolean(generatedPlan) && !isGeneratedPlanExportView && location.pathname === "/";
+    Boolean(generatedPlan) && location.pathname === "/";
 
   useEffect(() => {
     return registerMobileBottomAction(
@@ -1151,16 +1136,6 @@ const AutoPlan = () => {
       practiceExportTitle,
     ]
   );
-
-  const handlePrintPracticePlan = useCallback(() => {
-    if (typeof window === "undefined") return;
-    window.print();
-  }, []);
-
-  const handleDownloadPracticePdf = useCallback(() => {
-    toast.info("Choose Save as PDF in the print dialog.");
-    handlePrintPracticePlan();
-  }, [handlePrintPracticePlan]);
 
   const handleSharePracticePlan = useCallback(async () => {
     if (typeof navigator === "undefined") return;
@@ -1297,116 +1272,6 @@ const AutoPlan = () => {
   }
 
   if (generatedPlan) {
-    if (isGeneratedPlanExportView) {
-      return (
-        <div className="space-y-5 pb-6">
-          <div>
-            <h1 className="text-[2.85rem] font-bold leading-none tracking-normal sm:text-5xl">
-              {practiceExportTitle}
-            </h1>
-            <div className="mt-6 h-px w-full bg-border/80" />
-          </div>
-
-          <button
-            type="button"
-            className="grid w-full grid-cols-[4.25rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-[1.35rem] border border-white/10 bg-card/70 px-4 py-4 text-left shadow-sm shadow-black/10 backdrop-blur transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            aria-label="Practice date"
-          >
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.14)]">
-              <CalendarDays className="h-7 w-7" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-[1.65rem] font-bold leading-tight">
-                {practiceExportDay}
-              </span>
-              <span className="block text-[1.35rem] leading-tight text-muted-foreground">
-                {practiceExportMonthDate}
-              </span>
-            </span>
-            <ChevronRight className="h-7 w-7 text-muted-foreground" />
-          </button>
-
-          <section className="grid w-full grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-[1.35rem] border border-white/10 bg-card/70 px-4 py-5 shadow-sm shadow-black/10 backdrop-blur">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.14)]">
-              <FileText className="h-7 w-7" />
-            </span>
-            <div className="min-w-0 space-y-2">
-              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-primary">
-                PRACTICE DESCRIPTION
-              </h2>
-              <p className="text-[1.45rem] leading-[1.55] text-foreground">
-                {practiceExportDescription}
-              </p>
-            </div>
-          </section>
-
-          <div className="space-y-3">
-            <button
-              type="button"
-              onClick={handlePrintPracticePlan}
-              className="grid min-h-[5.25rem] w-full grid-cols-[4.25rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-[1.35rem] border-2 border-primary/85 bg-card/55 px-4 py-4 text-left shadow-sm shadow-primary/10 backdrop-blur transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.14)]">
-                <Printer className="h-7 w-7" />
-              </span>
-              <span className="truncate text-[1.65rem] font-bold leading-tight">Print</span>
-              <ChevronRight className="h-7 w-7 text-muted-foreground" />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDownloadPracticePdf}
-              className="grid min-h-[5.25rem] w-full grid-cols-[4.25rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-[1.35rem] border-2 border-primary/85 bg-card/55 px-4 py-4 text-left shadow-sm shadow-primary/10 backdrop-blur transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary/15 text-secondary shadow-[inset_0_0_0_1px_hsl(var(--secondary)/0.18)]">
-                <FileDown className="h-7 w-7" />
-              </span>
-              <span className="truncate text-[1.65rem] font-bold leading-tight">Download PDF</span>
-              <ChevronRight className="h-7 w-7 text-muted-foreground" />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSharePracticePlan}
-              className="grid min-h-[5.25rem] w-full grid-cols-[4.25rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-[1.35rem] border-2 border-primary/85 bg-card/55 px-4 py-4 text-left shadow-sm shadow-primary/10 backdrop-blur transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.14)]">
-                <Share2 className="h-7 w-7" />
-              </span>
-              <span className="truncate text-[1.65rem] font-bold leading-tight">Share</span>
-              <ChevronRight className="h-7 w-7 text-muted-foreground" />
-            </button>
-          </div>
-
-          <section className="grid grid-cols-[1fr_auto_1fr] items-center rounded-[1.35rem] border border-white/10 bg-card/55 px-4 py-4 shadow-sm shadow-black/10 backdrop-blur">
-            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
-              <Clock3 className="h-10 w-10 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="truncate text-[1.15rem] leading-tight text-muted-foreground">
-                  Practice Length
-                </p>
-                <p className="truncate text-[1.35rem] font-bold leading-tight text-primary">
-                  {duration} minutes
-                </p>
-              </div>
-            </div>
-            <div className="mx-4 h-14 w-px bg-border" />
-            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
-              <Gauge className="h-9 w-9 text-secondary" />
-              <div className="min-w-0">
-                <p className="truncate text-[1.15rem] leading-tight text-muted-foreground">
-                  Focus Intensity
-                </p>
-                <p className="truncate text-[1.35rem] font-bold capitalize leading-tight text-secondary">
-                  {practiceExportIntensity}
-                </p>
-              </div>
-            </div>
-          </section>
-        </div>
-      );
-    }
-
     return (
       <div className="space-y-5 sm:space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1456,10 +1321,9 @@ const AutoPlan = () => {
                 setPracticeTitle("");
                 setPracticeTitleEditValue("");
                 setIsEditingPracticeTitle(false);
-                setIsGeneratedPlanExportView(false);
                 if (typeof window !== "undefined") {
                   window.sessionStorage.removeItem(GENERATED_PLAN_TITLE_STORAGE_KEY);
-                }              
+                }
               }}
             >
               <PlusCircle className="h-4 w-4" />
@@ -1469,9 +1333,9 @@ const AutoPlan = () => {
               type="button"
               variant="outline"
               className="h-11 w-full sm:w-auto"
-              onClick={() => setIsGeneratedPlanExportView(true)}
+              onClick={handleSharePracticePlan}
             >
-              <Download className="h-4 w-4" />
+              <Share2 className="h-4 w-4" />
               Export
             </Button>
           </div>

@@ -117,4 +117,3 @@ export const getMobileBottomBarState = (pathname: string): MobileBottomBarState 
     widthClass: MOBILE_BOTTOM_BAR_WIDTH_CLASS,
   };
 };
-

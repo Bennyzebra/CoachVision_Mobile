@@ -166,24 +166,36 @@ test("RunPractice aligns the practice title and total minutes to the same text b
   assert.doesNotMatch(runPracticeSource, /self-end pb-1 text-\[1\.55rem\] font-semibold leading-none text-muted-foreground/);
 });
 
-test("RunPractice keeps the bottom elapsed total time fully visible on mobile", () => {
-  assert.match(runPracticeSource, /space-y-3 pb-3 pt-5/);
-  assert.match(runPracticeSource, /grid min-h-\[7rem\] grid-cols-\[auto_minmax\(0,1fr\)\] items-center gap-3/);
+test("RunPractice compacts the lower live-practice spacing below the drill card", () => {
+  assert.match(runPracticeSource, /<section className=\{cn\("min-h-full", !showFeedback && "flex h-full flex-col"\)\}>/);
+  assert.match(runPracticeSource, /<div className="flex flex-col">[\s\S]*?<div className="mt-11 overflow-hidden border-b border-border\/70 pb-5">/);
+  assert.match(runPracticeSource, /mt-11 overflow-hidden border-b border-border\/70 pb-5/);
+  assert.match(runPracticeSource, /flex min-h-\[4\.25rem\] w-full items-center justify-between gap-3 py-3/);
+  assert.match(runPracticeSource, /space-y-2 pb-2 pt-3/);
+  assert.match(runPracticeSource, /grid min-h-\[4\.75rem\] grid-cols-\[auto_minmax\(0,1fr\)\] items-center gap-3/);
   assert.match(runPracticeSource, /inline-flex min-w-0 items-baseline gap-1\.5 whitespace-nowrap/);
   assert.match(runPracticeSource, /text-\[2\.3rem\] font-bold leading-none tabular-nums/);
   assert.match(runPracticeSource, /text-\[1\.25rem\] font-medium text-muted-foreground/);
-  assert.match(runPracticeSource, /flex min-h-11 items-center justify-between gap-4/);
+  assert.match(runPracticeSource, /flex min-h-9 items-center justify-between gap-3/);
   assert.match(runPracticeSource, /flex min-w-0 flex-1 flex-wrap gap-2 text-xs font-medium/);
-  assert.match(runPracticeSource, /flex shrink-0 justify-end gap-5/);
-  assert.match(runPracticeSource, /h-10 rounded-full px-0 text-\[1\.15rem\] font-medium text-muted-foreground/);
-  assert.match(runPracticeSource, /<RotateCcw className="h-5 w-5" \/>/);
-  assert.match(runPracticeSource, /<Square className="h-5 w-5" \/>/);
+  assert.match(runPracticeSource, /flex shrink-0 justify-end gap-3/);
+  assert.match(runPracticeSource, /h-9 rounded-full px-0 text-\[1\.05rem\] font-medium text-muted-foreground/);
+  assert.match(runPracticeSource, /<RotateCcw className="h-4 w-4" \/>/);
+  assert.match(runPracticeSource, /<Square className="h-4 w-4" \/>/);
+  assert.doesNotMatch(runPracticeSource, /<div className="flex flex-1 flex-col justify-end">/);
+  assert.doesNotMatch(runPracticeSource, /mt-8 overflow-hidden border-b border-border\/70 pb-5/);
+  assert.doesNotMatch(runPracticeSource, /mt-11 overflow-hidden border-b border-border\/70 pb-10/);
+  assert.doesNotMatch(runPracticeSource, /flex min-h-\[6rem\] w-full items-center justify-between gap-3 py-6/);
   assert.doesNotMatch(runPracticeSource, /space-y-3 border-b border-border\/70 pb-3 pt-5/);
+  assert.doesNotMatch(runPracticeSource, /space-y-3 pb-3 pt-5/);
   assert.doesNotMatch(runPracticeSource, /space-y-4 border-b border-border\/70 py-7/);
   assert.doesNotMatch(runPracticeSource, /grid min-h-\[9rem\][\s\S]*?border-b border-border\/70 py-7/);
+  assert.doesNotMatch(runPracticeSource, /grid min-h-\[7rem\] grid-cols-\[auto_minmax\(0,1fr\)\] items-center gap-3/);
   assert.doesNotMatch(runPracticeSource, /mt-9 flex justify-end gap-8/);
   assert.doesNotMatch(runPracticeSource, /flex shrink-0 justify-end gap-8/);
+  assert.doesNotMatch(runPracticeSource, /flex shrink-0 justify-end gap-5/);
   assert.doesNotMatch(runPracticeSource, /h-11 rounded-full px-0 text-\[1\.45rem\] font-medium text-muted-foreground/);
+  assert.doesNotMatch(runPracticeSource, /h-10 rounded-full px-0 text-\[1\.15rem\] font-medium text-muted-foreground/);
   assert.doesNotMatch(runPracticeSource, /className="h-8 w-8"/);
   assert.doesNotMatch(runPracticeSource, /truncate text-\[3\.25rem\] font-bold leading-none tabular-nums/);
   assert.doesNotMatch(runPracticeSource, /grid min-h-\[7rem\] grid-cols-\[auto_minmax\(0,1fr\)_auto\]/);
@@ -227,26 +239,79 @@ test("RunPractice live progress bar distributes elapsed practice time across dri
   assert.doesNotMatch(runPracticeSource, /drillDurationMilliseconds -\s*drillTimeRemainingMillisecondsRef\.current \+\s*currentDrillOvertimeMillisecondsRef\.current/);
 });
 
-test("RunPractice reveals a clicked progress segment drill title below the bar", () => {
+test("RunPractice reveals a clicked progress segment as a styled preview-only callout", () => {
   assert.match(runPracticeSource, /selectedProgressSegmentIndex, setSelectedProgressSegmentIndex/);
+  assert.match(runPracticeSource, /isSelectedProgressSegmentDismissing, setIsSelectedProgressSegmentDismissing/);
+  assert.match(runPracticeSource, /SELECTED_PROGRESS_CALLOUT_AUTO_DISMISS_MS = 5000/);
+  assert.match(runPracticeSource, /SELECTED_PROGRESS_CALLOUT_FADE_DURATION_MS = 300/);
   assert.match(runPracticeSource, /practiceProgressRef = useRef<HTMLDivElement \| null>\(null\)/);
+  assert.match(runPracticeSource, /selectedProgressSegmentAutoDismissTimeoutRef = useRef<number \| null>\(null\)/);
+  assert.match(runPracticeSource, /selectedProgressSegmentFadeTimeoutRef = useRef<number \| null>\(null\)/);
   assert.match(runPracticeSource, /const selectedProgressSegment = selectedProgressSegmentIndex === null \? null : progressSegments\[selectedProgressSegmentIndex\]/);
-  assert.match(runPracticeSource, /setSelectedProgressSegmentIndex\(\(currentIndex\) => \(currentIndex === index \? null : index\)\)/);
+  assert.match(runPracticeSource, /const handleProgressSegmentClick = useCallback\(\(index: number\) => \{/);
+  assert.match(runPracticeSource, /selectedProgressSegmentIndex === index[\s\S]*?dismissSelectedProgressSegment\(\)/);
+  assert.match(runPracticeSource, /onClick=\{\(\) => handleProgressSegmentClick\(index\)\}/);
+  assert.match(runPracticeSource, /selectedProgressSegmentAutoDismissTimeoutRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*?dismissSelectedProgressSegment\(\);[\s\S]*?\}, SELECTED_PROGRESS_CALLOUT_AUTO_DISMISS_MS\)/);
+  assert.match(runPracticeSource, /selectedProgressSegmentFadeTimeoutRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*?setSelectedProgressSegmentIndex\(null\);[\s\S]*?setIsSelectedProgressSegmentDismissing\(false\);[\s\S]*?\}, SELECTED_PROGRESS_CALLOUT_FADE_DURATION_MS\)/);
+  assert.match(runPracticeSource, /dismissSelectedProgressSegment\(\);/);
+  assert.match(runPracticeSource, /const \{ mutedClass, fillClass \} = getProgressSegmentColorClassNames\(progressSegment\.segment\)/);
+  assert.match(runPracticeSource, /selectedProgressSegmentIndex === index && "pointer-events-none absolute inset-0 z-10 ring-2 ring-inset ring-secondary"/);
+  assert.match(runPracticeSource, /<span\s+aria-hidden="true"\s+className=\{cn\([\s\S]*?selectedProgressSegmentIndex === index && "pointer-events-none absolute inset-0 z-10 ring-2 ring-inset ring-secondary"[\s\S]*?\)\}\s*\/>/);
   assert.match(runPracticeSource, /document\.addEventListener\("pointerdown", handleOutsideProgressPointerDown\)/);
   assert.match(runPracticeSource, /practiceProgressRef\.current\.contains\(event\.target as Node\)/);
   assert.match(runPracticeSource, /document\.removeEventListener\("pointerdown", handleOutsideProgressPointerDown\)/);
   assert.match(runPracticeSource, /<button[\s\S]*?aria-label=\{`Show drill \$\{progressSegment\.name \|\| "Drill"\}`\}[\s\S]*?aria-pressed=\{selectedProgressSegmentIndex === index\}/);
   assert.match(runPracticeSource, /ref=\{practiceProgressRef\} className="relative"/);
   assert.match(runPracticeSource, /const selectedProgressSegmentLabelPositionPercent = selectedProgressSegment\s*\?\s*selectedProgressSegment\.startPercent \+ selectedProgressSegment\.widthPercent \/ 2\s*:\s*0/);
-  assert.match(runPracticeSource, /const isFirstSelectedProgressSegment = selectedProgressSegmentIndex === 0/);
-  assert.match(runPracticeSource, /const isLastSelectedProgressSegment = selectedProgressSegmentIndex === progressSegments\.length - 1/);
-  assert.match(runPracticeSource, /isFirstSelectedProgressSegment \? "left-0" : isLastSelectedProgressSegment \? "right-0" : "-translate-x-1\/2"/);
-  assert.match(runPracticeSource, /style=\{isFirstSelectedProgressSegment \|\| isLastSelectedProgressSegment\s*\?\s*undefined\s*:\s*\{ left: `\$\{selectedProgressSegmentLabelPositionPercent\}%` \}\}/);
-  assert.match(runPracticeSource, /className=\{cn\(\s*"absolute top-full mt-2 flex max-w-\[min\(18rem,100%\)\] items-center gap-1\.5 whitespace-nowrap text-sm font-medium text-muted-foreground"/);
+  assert.doesNotMatch(runPracticeSource, /const isFirstSelectedProgressSegment = selectedProgressSegmentIndex === 0/);
+  assert.doesNotMatch(runPracticeSource, /const isLastSelectedProgressSegment = selectedProgressSegmentIndex === progressSegments\.length - 1/);
+  assert.match(runPracticeSource, /const selectedProgressSegmentCalloutClassName = cn\(/);
+  assert.match(runPracticeSource, /transition-\[opacity,transform\] duration-300 ease-out will-change-\[opacity,transform\]/);
+  assert.match(runPracticeSource, /isSelectedProgressSegmentDismissing\s*\?\s*"pointer-events-none translate-y-1 scale-\[0\.98\] opacity-0"\s*:\s*"translate-y-0 scale-100 opacity-100"/);
+  assert.match(runPracticeSource, /const selectedProgressSegmentCalloutNubStyle = \{\s*left: `\$\{selectedProgressSegmentLabelPositionPercent\}%`,\s*\}/);
+  assert.doesNotMatch(runPracticeSource, /absolute top-full mt-1 h-0 w-0 border-x-\[7px\] border-t-\[8px\] border-x-transparent border-t-secondary/);
+  assert.match(runPracticeSource, /const selectedProgressSegmentCalloutClassName = cn\(\s*"relative mt-6 w-full max-w-full origin-top rounded-\[8px\] border border-border\/70 bg-card\/95 px-4 py-4 text-card-foreground shadow-\[0_14px_36px_rgba\(0,0,0,0\.32\)\] backdrop-blur transition-\[opacity,transform\] duration-300 ease-out will-change-\[opacity,transform\]"/);
+  assert.doesNotMatch(runPracticeSource, /absolute inset-x-0 top-full mt-5 max-w-full/);
+  assert.match(runPracticeSource, /className="absolute -top-3 h-3 w-8 -translate-x-1\/2 rounded-t-\[8px\] border-l border-r border-t border-border\/70 bg-card\/95"/);
+  assert.match(runPracticeSource, /style=\{selectedProgressSegmentCalloutNubStyle\}/);
+  assert.match(runPracticeSource, /after:absolute after:inset-y-1 after:left-0 after:w-1 after:rounded-l-\[8px\] after:content-\[''\]/);
+  assert.match(runPracticeSource, /getProgressSegmentColorClassNames\(selectedProgressSegment\.segment\)\.accentClass/);
+  assert.match(runPracticeSource, /getProgressSegmentColorClassNames\(selectedProgressSegment\.segment\)\.badgeClass/);
+  assert.match(runPracticeSource, /border-secondary px-4 text-\[1\.05rem\] font-semibold text-secondary/);
   assert.match(runPracticeSource, /selectedProgressSegment\?\.name && \(/);
-  assert.match(runPracticeSource, /\{selectedProgressSegment\.name\}/);
+  assert.match(runPracticeSource, /<div className="flex min-w-0 items-center justify-between gap-3">/);
+  assert.match(runPracticeSource, /<div className="min-w-0 flex-1 pl-3">/);
+  assert.match(runPracticeSource, /<h3 className="truncate text-\[1\.1rem\] font-semibold leading-tight">[\s\S]*?\{selectedProgressSegment\.name\}/);
+  assert.match(runPracticeSource, /mt-2 flex min-w-0 items-center gap-1\.5 whitespace-nowrap text-\[0\.8rem\] font-medium text-muted-foreground/);
+  assert.match(runPracticeSource, /rounded-\[6px\] border px-1\.5 py-0\.5 text-\[0\.68rem\] font-semibold leading-none/);
+  assert.match(runPracticeSource, /<span className="shrink-0">Drill \{selectedProgressSegmentIndex \+ 1\} of \{drillSequence\.length\}<\/span>/);
+  assert.doesNotMatch(runPracticeSource, /flex min-w-0 flex-wrap/);
+  assert.doesNotMatch(runPracticeSource, /px-3 py-3 text-card-foreground/);
+  assert.match(runPracticeSource, /\{formatSegmentLabel\(selectedProgressSegment\.segment\)\}/);
   assert.match(runPracticeSource, /<span aria-hidden="true" className="shrink-0 text-muted-foreground\/70">•<\/span>/);
   assert.match(runPracticeSource, /\{selectedProgressSegment\.duration\} min/);
+  assert.match(runPracticeSource, /Drill \{selectedProgressSegmentIndex \+ 1\} of \{drillSequence\.length\}/);
+  assert.match(runPracticeSource, /const handleJumpToSelectedProgressSegment = useCallback\(\(\) => \{/);
+  assert.match(runPracticeSource, /const jumpDirection: DrillSlideDirection = jumpIndex > currentDrillIndex \? "next" : "previous"/);
+  assert.match(runPracticeSource, /startDrillSlideTransition\(jumpDirection, jumpIndex, jumpDrillDurationMilliseconds\)/);
+  assert.match(runPracticeSource, /onClick=\{handleJumpToSelectedProgressSegment\}/);
+  assert.match(runPracticeSource, /aria-label=\{`Jump to \$\{selectedProgressSegment\.name\}`\}/);
+  assert.match(runPracticeSource, /disabled=\{selectedProgressSegmentIndex === currentDrillIndex \|\| isAnimating\}/);
+  assert.match(runPracticeSource, /<ChevronRight className="h-5 w-5" \/>/);
+  assert.doesNotMatch(runPracticeSource, /<p[\s\S]*?absolute top-full mt-2 flex max-w-\[min\(18rem,100%\)\]/);
+  assert.doesNotMatch(runPracticeSource, /<p className="mt-2 text-\[0\.8rem\] font-medium text-muted-foreground">/);
+  assert.doesNotMatch(runPracticeSource, /top-full mt-9/);
+  assert.doesNotMatch(runPracticeSource, /w-\[min\(21rem,calc\(100vw-2rem\)\)\]/);
+  assert.doesNotMatch(runPracticeSource, /px-7 py-6/);
+  assert.doesNotMatch(runPracticeSource, /text-\[1\.85rem\]/);
+  assert.doesNotMatch(runPracticeSource, /mt-5 text-\[1\.15rem\]/);
+  assert.doesNotMatch(runPracticeSource, /before:left-\[5\.75rem\]/);
+  const progressSegmentButtonSource = runPracticeSource.slice(
+    runPracticeSource.indexOf('aria-label={`Show drill ${progressSegment.name || "Drill"}`}'),
+    runPracticeSource.indexOf('title={`${progressSegment.name}', runPracticeSource.indexOf('aria-label={`Show drill ${progressSegment.name || "Drill"}`}'))
+  );
+  assert.doesNotMatch(progressSegmentButtonSource, /handleNextDrill/);
+  assert.doesNotMatch(progressSegmentButtonSource, /handlePreviousDrill/);
 });
 
 test("RunPractice slides whole drill cards with mirrored two-panel transitions", () => {

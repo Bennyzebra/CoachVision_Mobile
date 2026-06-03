@@ -1,27 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
+import { resolveSupabaseConfig } from "./config";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-const FALLBACK_SUPABASE_URL = "http://localhost:54321";
-const FALLBACK_SUPABASE_PUBLISHABLE_KEY = "public-anon-key";
+const supabaseConfig = resolveSupabaseConfig(import.meta.env);
 
-export const isSupabaseConfigured = Boolean(
-  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-);
+export const isSupabaseConfigured = supabaseConfig.isConfigured;
 
 if (!isSupabaseConfigured) {
   console.warn(
-    "Supabase environment variables are missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to enable authentication and data features."
+    "Supabase environment variables are missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to enable authentication and data features. VITE_SUPABASE_ANON_KEY is still supported for older local env files."
   );
 }
 
-const supabaseUrl = isSupabaseConfigured ? SUPABASE_URL : FALLBACK_SUPABASE_URL;
-const supabasePublishableKey = isSupabaseConfigured
-  ? SUPABASE_PUBLISHABLE_KEY
-  : FALLBACK_SUPABASE_PUBLISHABLE_KEY;
-
-export const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
+export const supabase = createClient<Database>(supabaseConfig.url, supabaseConfig.key, {
   auth: {
     storage: localStorage,
     persistSession: true,

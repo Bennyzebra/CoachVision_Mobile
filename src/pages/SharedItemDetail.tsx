@@ -22,6 +22,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Unknown error");
+
 export default function SharedItemDetail() {
   const { itemId } = useParams();
   const navigate = useNavigate();
@@ -104,7 +106,7 @@ export default function SharedItemDetail() {
       }
 
       setItem({
-        ...(itemData as any),
+        ...(itemData as SharedItem),
         owner_profile: ownerProfile,
         is_liked: isLiked,
         is_saved: isSaved
@@ -130,13 +132,13 @@ export default function SharedItemDetail() {
           user_profile: profileMap.get(comment.user_id)
         }));
 
-        setComments(commentsWithProfiles as any);
+        setComments(commentsWithProfiles as CommentType[]);
       } else {
         setComments([]);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Item load error:", error);
-      toast.error(`Failed to load item: ${error.message || 'Unknown error'}`);
+      toast.error(`Failed to load item: ${getErrorMessage(error)}`);
     } finally {
       setLoading(false);
     }
@@ -273,9 +275,9 @@ export default function SharedItemDetail() {
 
       toast.success("Post deleted successfully");
       navigate("/community");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Delete error:", error);
-      toast.error(`Failed to delete: ${error.message || 'Unknown error'}`);
+      toast.error(`Failed to delete: ${getErrorMessage(error)}`);
     }
   };
 

@@ -1,62 +1,34 @@
 import { supabase } from "@/integrations/supabase/client";
-import {
-  extractFeedbackInsights,
-  mergeTeamProfileSummary,
-  summarizePlanThemes,
-  type PracticePlanSummary,
-  type TeamProfileSummary,
-} from "@/lib/planning/teamProfile";
+import type { PracticePlanSummary, TeamProfileSummary } from "@/lib/planning/teamProfile";
+import { createTeamProfileSummaryUpdater } from "./teamProfileSummaryUpdater";
 
-const fetchTeamProfileSummary = async (teamId: string) => {
-  const { data, error } = await supabase
-    .from("teams")
-    .select("team_profile_summary")
-    .eq("id", teamId)
-    .maybeSingle();
+const teamProfileSummaryUpdater = createTeamProfileSummaryUpdater({
+  fetch: async (teamId: string) => {
+    const { data, error } = await supabase
+      .from("teams")
+      .select("team_profile_summary")
+      .eq("id", teamId)
+      .maybeSingle();
 
-  if (error) {
-    throw error;
-  }
+    return {
+      data: (data?.team_profile_summary as TeamProfileSummary | null | undefined) ?? null,
+      error,
+    };
+  },
+  update: async (teamId: string, summary: TeamProfileSummary) => {
+    const { error } = await supabase
+      .from("teams")
+      .update({ team_profile_summary: summary })
+      .eq("id", teamId);
 
-  return (data?.team_profile_summary as TeamProfileSummary | null | undefined) ?? null;
-};
+    return { error };
+  },
+});
 
 export const updateTeamProfileFromPracticePlan = async (teamId: string, plan: PracticePlanSummary) => {
-  const currentSummary = await fetchTeamProfileSummary(teamId);
-  const { tagWeights, recentThemes } = summarizePlanThemes(plan);
-  const nextSummary = mergeTeamProfileSummary(currentSummary, {
-    tagWeights,
-    recentThemes,
-  });
-
-  const { error } = await supabase
-    .from("teams")
-    .update({ team_profile_summary: nextSummary })
-    .eq("id", teamId);
-
-  if (error) {
-    throw error;
-  }
+  await teamProfileSummaryUpdater.updateFromPracticePlan(teamId, plan);
 };
 
 export const updateTeamProfileFromFeedback = async (teamId: string, feedbackNotes: string) => {
-  const trimmed = feedbackNotes.trim();
-  if (!trimmed) return;
-
-  const currentSummary = await fetchTeamProfileSummary(teamId);
-  const insights = extractFeedbackInsights(trimmed);
-  const nextSummary = mergeTeamProfileSummary(currentSummary, {
-    strengths: insights.strengths,
-    weaknesses: insights.weaknesses,
-    tagWeights: insights.tagWeights,
-  });
-
-  const { error } = await supabase
-    .from("teams")
-    .update({ team_profile_summary: nextSummary })
-    .eq("id", teamId);
-
-  if (error) {
-    throw error;
-  }
+  await teamProfileSummaryUpdater.updateFromFeedback(teamId, feedbackNotes);
 };

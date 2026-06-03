@@ -27,9 +27,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type CommunityTab = "following" | "trending" | "latest";
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Unknown error");
+const isCommunityTab = (value: string): value is CommunityTab =>
+  value === "following" || value === "trending" || value === "latest";
+
 export default function Community() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"following" | "trending" | "latest">("trending");
+  const [activeTab, setActiveTab] = useState<CommunityTab>("trending");
   const [items, setItems] = useState<SharedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -106,10 +112,10 @@ export default function Community() {
         owner_profile: profileMap.get(item.owner_user_id)
       }));
 
-      setItems(itemsWithProfiles as any);
-    } catch (error: any) {
+      setItems(itemsWithProfiles as SharedItem[]);
+    } catch (error: unknown) {
       console.error("Feed load error:", error);
-      toast.error(`Failed to load feed: ${error.message || 'Unknown error'}`);
+      toast.error(`Failed to load feed: ${getErrorMessage(error)}`);
     } finally {
       setLoading(false);
     }
@@ -186,9 +192,9 @@ export default function Community() {
       toast.success("Post deleted successfully");
       setDeleteItemId(null);
       loadFeed();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Delete error:", error);
-      toast.error(`Failed to delete: ${error.message || 'Unknown error'}`);
+      toast.error(`Failed to delete: ${getErrorMessage(error)}`);
     }
   };
 
@@ -216,7 +222,7 @@ export default function Community() {
               className="pl-10"
             />
           </div>
-          <Select value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+          <Select value={activeTab} onValueChange={(value) => isCommunityTab(value) && setActiveTab(value)}>
             <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue />
             </SelectTrigger>

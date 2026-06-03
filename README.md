@@ -31,6 +31,19 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
+`VITE_SUPABASE_ANON_KEY` is still accepted for older local env files, but new setup should use
+`VITE_SUPABASE_PUBLISHABLE_KEY`.
+
+When running from Xcode, Capacitor loads the built web files from `ios/App/App/public`. After changing
+`.env` or frontend code, refresh those files with:
+
+```sh
+npm run ios:copy
+```
+
+The Xcode project also runs this copy step before bundling resources so local Xcode launches do not use
+stale Supabase configuration.
+
 Gemini requests are handled by the `gemini` Supabase Edge Function so the API key is not exposed in the browser bundle. Configure Gemini as a Supabase secret instead of a `VITE_` variable:
 
 ```sh

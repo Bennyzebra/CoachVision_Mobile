@@ -19,10 +19,6 @@ const Discover = () => {
   const [focusFilter, setFocusFilter] = useState<DrillFocus | "all">("all");
   const [sortBy, setSortBy] = useState<"name" | "duration" | "focus">("name");
   
-  useEffect(() => {
-    if (state.drills.length === 0 && !hasLoadedDrills) {
-    }
-  }, [state.drills.length, hasLoadedDrills, loadDrillsFromDatabase]);
   // Get drill IDs already in the plan
   const planDrillIds = new Set(state.plan.map((item) => item.drillId));
   

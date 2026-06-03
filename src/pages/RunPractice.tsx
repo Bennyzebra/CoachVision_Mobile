@@ -75,6 +75,8 @@ const TIMER_SYNC_TOLERANCE_MS = 20;
 const PACE_NOTIFICATION_DURATION_MS = 3000;
 const PACE_NOTIFICATION_EXIT_DURATION_MS = 500;
 const DRILL_SLIDE_DURATION_MS = 300;
+const SELECTED_PROGRESS_CALLOUT_AUTO_DISMISS_MS = 5000;
+const SELECTED_PROGRESS_CALLOUT_FADE_DURATION_MS = 300;
 
 type DrillTitleFit = {
   fontSizeRem: number;
@@ -154,6 +156,33 @@ const formatFocusLabel = (focus?: string) => {
     .join(" ");
 };
 
+const getProgressSegmentColorClassNames = (segment?: string) => {
+  if (segment === "Warmup") {
+    return {
+      mutedClass: "bg-secondary/20",
+      fillClass: "bg-secondary",
+      accentClass: "after:bg-secondary",
+      badgeClass: "border-secondary/35 bg-secondary/10 text-secondary",
+    };
+  }
+
+  if (segment === "Cool Down") {
+    return {
+      mutedClass: "bg-foreground/15",
+      fillClass: "bg-foreground/55",
+      accentClass: "after:bg-foreground/55",
+      badgeClass: "border-foreground/25 bg-foreground/10 text-foreground",
+    };
+  }
+
+  return {
+    mutedClass: "bg-primary/20",
+    fillClass: "bg-primary",
+    accentClass: "after:bg-primary",
+    badgeClass: "border-primary/35 bg-primary/10 text-primary",
+  };
+};
+
 type FeedbackDrill = ReturnType<typeof buildDrillSequence>[number];
 type SegmentedFeedbackDrill = {
   segment: string;
@@ -220,6 +249,7 @@ const RunPractice = () => {
   const [isPaceNotificationVisible, setIsPaceNotificationVisible] = useState(false);
   const [paceAdjustmentsByDrillIndex, setPaceAdjustmentsByDrillIndex] = useState<Record<number, PaceAdjustment>>({});
   const [selectedProgressSegmentIndex, setSelectedProgressSegmentIndex] = useState<number | null>(null);
+  const [isSelectedProgressSegmentDismissing, setIsSelectedProgressSegmentDismissing] = useState(false);
   const [currentDrillOvertime, setCurrentDrillOvertime] = useState(0);  
   const [drillTitleFit, setDrillTitleFit] = useState<DrillTitleFit>({
     fontSizeRem: DEFAULT_DRILL_TITLE_FONT_SIZE_REM,
@@ -236,6 +266,8 @@ const RunPractice = () => {
   const paceNotificationDismissTimeoutRef = useRef<number | null>(null);
   const paceNotificationIdRef = useRef(0);
   const drillSlideTimeoutRef = useRef<number | null>(null);
+  const selectedProgressSegmentAutoDismissTimeoutRef = useRef<number | null>(null);
+  const selectedProgressSegmentFadeTimeoutRef = useRef<number | null>(null);
   useEffect(() => {
     if (!practiceId) {
       toast.error("No practice ID provided");
@@ -628,6 +660,108 @@ const RunPractice = () => {
     timeSaved,
   ]);
 
+  const clearSelectedProgressSegmentAutoDismissTimeout = useCallback(() => {
+    if (selectedProgressSegmentAutoDismissTimeoutRef.current) {
+      window.clearTimeout(selectedProgressSegmentAutoDismissTimeoutRef.current);
+      selectedProgressSegmentAutoDismissTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearSelectedProgressSegmentFadeTimeout = useCallback(() => {
+    if (selectedProgressSegmentFadeTimeoutRef.current) {
+      window.clearTimeout(selectedProgressSegmentFadeTimeoutRef.current);
+      selectedProgressSegmentFadeTimeoutRef.current = null;
+    }
+  }, []);
+
+  const dismissSelectedProgressSegment = useCallback(() => {
+    if (selectedProgressSegmentIndex === null || isSelectedProgressSegmentDismissing) return;
+
+    clearSelectedProgressSegmentAutoDismissTimeout();
+    clearSelectedProgressSegmentFadeTimeout();
+    setIsSelectedProgressSegmentDismissing(true);
+    selectedProgressSegmentFadeTimeoutRef.current = window.setTimeout(() => {
+      setSelectedProgressSegmentIndex(null);
+      setIsSelectedProgressSegmentDismissing(false);
+      selectedProgressSegmentFadeTimeoutRef.current = null;
+    }, SELECTED_PROGRESS_CALLOUT_FADE_DURATION_MS);
+  }, [
+    clearSelectedProgressSegmentAutoDismissTimeout,
+    clearSelectedProgressSegmentFadeTimeout,
+    isSelectedProgressSegmentDismissing,
+    selectedProgressSegmentIndex,
+  ]);
+
+  const handleProgressSegmentClick = useCallback((index: number) => {
+    if (selectedProgressSegmentIndex === index) {
+      dismissSelectedProgressSegment();
+      return;
+    }
+
+    clearSelectedProgressSegmentAutoDismissTimeout();
+    clearSelectedProgressSegmentFadeTimeout();
+    setIsSelectedProgressSegmentDismissing(false);
+    setSelectedProgressSegmentIndex(index);
+  }, [
+    clearSelectedProgressSegmentAutoDismissTimeout,
+    clearSelectedProgressSegmentFadeTimeout,
+    dismissSelectedProgressSegment,
+    selectedProgressSegmentIndex,
+  ]);
+
+  useEffect(() => {
+    if (selectedProgressSegmentIndex === null || isSelectedProgressSegmentDismissing) return;
+
+    clearSelectedProgressSegmentAutoDismissTimeout();
+    selectedProgressSegmentAutoDismissTimeoutRef.current = window.setTimeout(() => {
+      dismissSelectedProgressSegment();
+    }, SELECTED_PROGRESS_CALLOUT_AUTO_DISMISS_MS);
+
+    return clearSelectedProgressSegmentAutoDismissTimeout;
+  }, [
+    clearSelectedProgressSegmentAutoDismissTimeout,
+    dismissSelectedProgressSegment,
+    isSelectedProgressSegmentDismissing,
+    selectedProgressSegmentIndex,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      clearSelectedProgressSegmentAutoDismissTimeout();
+      clearSelectedProgressSegmentFadeTimeout();
+    };
+  }, [clearSelectedProgressSegmentAutoDismissTimeout, clearSelectedProgressSegmentFadeTimeout]);
+
+  const handleJumpToSelectedProgressSegment = useCallback(() => {
+    if (selectedProgressSegmentIndex === null || isAnimating) return;
+
+    const jumpIndex = selectedProgressSegmentIndex;
+    const jumpDrill = drillSequence[jumpIndex];
+
+    clearSelectedProgressSegmentAutoDismissTimeout();
+    clearSelectedProgressSegmentFadeTimeout();
+    setIsSelectedProgressSegmentDismissing(false);
+
+    if (!jumpDrill || jumpIndex === currentDrillIndex) {
+      setSelectedProgressSegmentIndex(null);
+      return;
+    }
+
+    const jumpDirection: DrillSlideDirection = jumpIndex > currentDrillIndex ? "next" : "previous";
+    const jumpDrillDurationMilliseconds = (jumpDrill.duration || 0) * 60 * 1000;
+
+    setSelectedProgressSegmentIndex(null);
+    startDrillSlideTransition(jumpDirection, jumpIndex, jumpDrillDurationMilliseconds);
+  }, [
+    currentDrillIndex,
+    clearSelectedProgressSegmentAutoDismissTimeout,
+    clearSelectedProgressSegmentFadeTimeout,
+    drillSequence,
+    isAnimating,
+    selectedProgressSegmentIndex,
+    startDrillSlideTransition,
+  ]);
+
   const practiceProgress = totalDurationMilliseconds
     ? Math.max(0, Math.min(100, (elapsedPracticeMilliseconds / totalDurationMilliseconds) * 100))
     : 0;
@@ -645,8 +779,22 @@ const RunPractice = () => {
   const selectedProgressSegmentLabelPositionPercent = selectedProgressSegment
     ? selectedProgressSegment.startPercent + selectedProgressSegment.widthPercent / 2
     : 0;
-  const isFirstSelectedProgressSegment = selectedProgressSegmentIndex === 0;
-  const isLastSelectedProgressSegment = selectedProgressSegmentIndex === progressSegments.length - 1;
+  const selectedProgressSegmentCalloutClassName = cn(
+    "relative mt-6 w-full max-w-full origin-top rounded-[8px] border border-border/70 bg-card/95 px-4 py-4 text-card-foreground shadow-[0_14px_36px_rgba(0,0,0,0.32)] backdrop-blur transition-[opacity,transform] duration-300 ease-out will-change-[opacity,transform]",
+    "after:absolute after:inset-y-1 after:left-0 after:w-1 after:rounded-l-[8px] after:content-['']",
+    isSelectedProgressSegmentDismissing
+      ? "pointer-events-none translate-y-1 scale-[0.98] opacity-0"
+      : "translate-y-0 scale-100 opacity-100",
+    selectedProgressSegment
+      ? getProgressSegmentColorClassNames(selectedProgressSegment.segment).accentClass
+      : "after:bg-primary"
+  );
+  const selectedProgressSegmentCalloutNubStyle = {
+    left: `${selectedProgressSegmentLabelPositionPercent}%`,
+  };
+  const selectedProgressSegmentBadgeClassName = selectedProgressSegment
+    ? getProgressSegmentColorClassNames(selectedProgressSegment.segment).badgeClass
+    : "border-primary/35 bg-primary/10 text-primary";
   const currentDrill = drillSequence[currentDrillIndex];
   const nextDrill = drillSequence[currentDrillIndex + 1];
   const isCurrentDrillFinished = Boolean(currentDrill) && drillTimeRemaining === 0;
@@ -802,7 +950,7 @@ const RunPractice = () => {
         return;
       }
 
-      setSelectedProgressSegmentIndex(null);
+      dismissSelectedProgressSegment();
     };
 
     document.addEventListener("pointerdown", handleOutsideProgressPointerDown);
@@ -810,7 +958,7 @@ const RunPractice = () => {
     return () => {
       document.removeEventListener("pointerdown", handleOutsideProgressPointerDown);
     };
-  }, [selectedProgressSegmentIndex]);
+  }, [dismissSelectedProgressSegment, selectedProgressSegmentIndex]);
 
   const renderLiveDrillCard = (
     drillIndex: number,
@@ -1061,7 +1209,7 @@ const RunPractice = () => {
         </div>
       )}
 
-      <section>
+      <section className={cn("min-h-full", !showFeedback && "flex h-full flex-col")}>
         <div>
           <div className="relative mt-8 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-border/70 pb-1 pt-4">
             <button
@@ -1088,18 +1236,7 @@ const RunPractice = () => {
               <div className="flex h-full w-full">
                 {drillSequence.length > 0 ? (
                   progressSegments.map((progressSegment, index) => {
-                      const mutedClass =
-                        progressSegment.segment === "Warmup"
-                          ? "bg-secondary/20"
-                          : progressSegment.segment === "Cool Down"
-                            ? "bg-foreground/15"
-                            : "bg-primary/20";
-                      const fillClass =
-                        progressSegment.segment === "Warmup"
-                          ? "bg-secondary"
-                          : progressSegment.segment === "Cool Down"
-                            ? "bg-foreground/55"
-                            : "bg-primary";
+                      const { mutedClass, fillClass } = getProgressSegmentColorClassNames(progressSegment.segment);
 
                       return (
                         <button
@@ -1114,15 +1251,19 @@ const RunPractice = () => {
                             progressSegment.isActive && "ring-2 ring-inset ring-primary/80",
                             index < drillSequence.length - 1 && "border-r border-background/80"
                           )}
-                          onClick={() =>
-                            setSelectedProgressSegmentIndex((currentIndex) => (currentIndex === index ? null : index))
-                          }
+                          onClick={() => handleProgressSegmentClick(index)}
                           style={{ width: `${progressSegment.widthPercent}%` }}
                           title={`${progressSegment.name} (${progressSegment.duration} min) - ${progressSegment.segment}`}
                         >
                           <div
                             className={cn("h-full transition-all duration-500", fillClass)}
                             style={{ width: `${progressSegment.fillPercent}%` }}
+                          />
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              selectedProgressSegmentIndex === index && "pointer-events-none absolute inset-0 z-10 ring-2 ring-inset ring-secondary"
+                            )}
                           />
                         </button>
                       );
@@ -1133,155 +1274,188 @@ const RunPractice = () => {
               </div>
             </div>
             {selectedProgressSegment?.name && (
-              <p
-                className={cn(
-                  "absolute top-full mt-2 flex max-w-[min(18rem,100%)] items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground",
-                  isFirstSelectedProgressSegment ? "left-0" : isLastSelectedProgressSegment ? "right-0" : "-translate-x-1/2"
-                )}
-                style={isFirstSelectedProgressSegment || isLastSelectedProgressSegment
-                  ? undefined
-                  : { left: `${selectedProgressSegmentLabelPositionPercent}%` }}
-              >
-                <span className="min-w-0 truncate">{selectedProgressSegment.name}</span>
-                <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">•</span>
-                <span className="shrink-0">{selectedProgressSegment.duration} min</span>
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-11 overflow-hidden border-b border-border/70 pb-10">
-          <div className="grid overflow-hidden">
-            {drillSlideTransition ? (
               <>
                 <div
-                  key={`outgoing-${drillSlideTransition.fromIndex}-${drillSlideTransition.toIndex}-${drillSlideTransition.direction}`}
-                  className={outgoingDrillCardClassName}
+                  className={selectedProgressSegmentCalloutClassName}
                 >
-                  {renderLiveDrillCard(
-                    drillSlideTransition.fromIndex,
-                    false,
-                    drillSlideTransition.fromDetailsOpen
-                  )}
-                </div>
-                <div key={activeDrillCardKey} className={incomingDrillCardClassName}>
-                  {renderLiveDrillCard(drillSlideTransition.toIndex)}
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-3 h-3 w-8 -translate-x-1/2 rounded-t-[8px] border-l border-r border-t border-border/70 bg-card/95"
+                    style={selectedProgressSegmentCalloutNubStyle}
+                  />
+                  <div className="flex min-w-0 items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 pl-3">
+                      <h3 className="truncate text-[1.1rem] font-semibold leading-tight">
+                        {selectedProgressSegment.name}
+                      </h3>
+                      <div className="mt-2 flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[0.8rem] font-medium text-muted-foreground">
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-[6px] border px-1.5 py-0.5 text-[0.68rem] font-semibold leading-none",
+                            selectedProgressSegmentBadgeClassName
+                          )}
+                        >
+                          {formatSegmentLabel(selectedProgressSegment.segment)}
+                        </span>
+                        <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">•</span>
+                        <span className="shrink-0">{selectedProgressSegment.duration} min</span>
+                        <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">•</span>
+                        <span className="shrink-0">Drill {selectedProgressSegmentIndex + 1} of {drillSequence.length}</span>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-11 shrink-0 gap-2 rounded-[8px] border-secondary px-4 text-[1.05rem] font-semibold text-secondary hover:bg-secondary/10 hover:text-secondary"
+                      onClick={handleJumpToSelectedProgressSegment}
+                      disabled={selectedProgressSegmentIndex === currentDrillIndex || isAnimating}
+                      aria-label={`Jump to ${selectedProgressSegment.name}`}
+                    >
+                      Jump
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
               </>
-            ) : (
-              <div key={activeDrillCardKey} className={incomingDrillCardClassName}>
-                {renderLiveDrillCard(currentDrillIndex)}
-              </div>
             )}
           </div>
         </div>
 
-        <div className="border-b border-border/70">
-          <button
-            type="button"
-            className="flex min-h-[6rem] w-full items-center justify-between gap-3 py-6 text-left disabled:cursor-default disabled:opacity-70"
-            onClick={() => nextDrill && setIsNextPreviewOpen((open) => !open)}
-            disabled={!nextDrill}
-          >
-            <span className="min-w-0 flex-1 truncate text-[1.55rem] leading-[1.2] text-muted-foreground">
-              <span className="font-medium text-foreground">Next:</span>{" "}
-              {nextDrill?.name || "Practice complete"}
-            </span>
-            {nextDrill && (
-              <ChevronDown
-                className={cn(
-                  "h-7 w-7 shrink-0 text-muted-foreground transition-transform",
-                  isNextPreviewOpen && "rotate-180"
-                )}
-              />
-            )}
-          </button>
-          {isNextPreviewOpen && nextDrill && (
-            <div className="space-y-3 pb-5 text-base text-muted-foreground">
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
-                  {formatSegmentLabel(nextDrill.segment)}
-                </Badge>
-                {nextDrill.focus && (
-                  <Badge variant="outline" className="border-primary/35 bg-primary/10 px-2 py-0 text-[11px] font-medium text-primary">
-                    {nextDrillFocusLabel}
+        <div className="flex flex-col">
+          <div className="mt-11 overflow-hidden border-b border-border/70 pb-5">
+            <div className="grid overflow-hidden">
+              {drillSlideTransition ? (
+                <>
+                  <div
+                    key={`outgoing-${drillSlideTransition.fromIndex}-${drillSlideTransition.toIndex}-${drillSlideTransition.direction}`}
+                    className={outgoingDrillCardClassName}
+                  >
+                    {renderLiveDrillCard(
+                      drillSlideTransition.fromIndex,
+                      false,
+                      drillSlideTransition.fromDetailsOpen
+                    )}
+                  </div>
+                  <div key={activeDrillCardKey} className={incomingDrillCardClassName}>
+                    {renderLiveDrillCard(drillSlideTransition.toIndex)}
+                  </div>
+                </>
+              ) : (
+                <div key={activeDrillCardKey} className={incomingDrillCardClassName}>
+                  {renderLiveDrillCard(currentDrillIndex)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-b border-border/70">
+            <button
+              type="button"
+              className="flex min-h-[4.25rem] w-full items-center justify-between gap-3 py-3 text-left disabled:cursor-default disabled:opacity-70"
+              onClick={() => nextDrill && setIsNextPreviewOpen((open) => !open)}
+              disabled={!nextDrill}
+            >
+              <span className="min-w-0 flex-1 truncate text-[1.55rem] leading-[1.2] text-muted-foreground">
+                <span className="font-medium text-foreground">Next:</span>{" "}
+                {nextDrill?.name || "Practice complete"}
+              </span>
+              {nextDrill && (
+                <ChevronDown
+                  className={cn(
+                    "h-7 w-7 shrink-0 text-muted-foreground transition-transform",
+                    isNextPreviewOpen && "rotate-180"
+                  )}
+                />
+              )}
+            </button>
+            {isNextPreviewOpen && nextDrill && (
+              <div className="space-y-3 pb-5 text-base text-muted-foreground">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
+                    {formatSegmentLabel(nextDrill.segment)}
                   </Badge>
-                )}
-                <Badge variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
-                  {nextDrill.duration} min
-                </Badge>
+                  {nextDrill.focus && (
+                    <Badge variant="outline" className="border-primary/35 bg-primary/10 px-2 py-0 text-[11px] font-medium text-primary">
+                      {nextDrillFocusLabel}
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="border-border bg-muted/35 px-2 py-0 text-[11px] font-medium text-muted-foreground">
+                    {nextDrill.duration} min
+                  </Badge>
+                </div>
+                {nextDrill.description && <p className="line-clamp-2 leading-6">{nextDrill.description}</p>}
               </div>
-              {nextDrill.description && <p className="line-clamp-2 leading-6">{nextDrill.description}</p>}
+            )}
+          </div>
+
+          <div className="space-y-2 pb-2 pt-3">
+            <div className="grid min-h-[4.75rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-muted/35 text-muted-foreground">
+                <Clock className="h-5 w-5" />
+              </span>
+              <span className="inline-flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
+                <span className="text-[2.3rem] font-bold leading-none tabular-nums">
+                  {elapsedPracticeClock}
+                </span>
+                <span className="text-[1.25rem] font-medium text-muted-foreground">/ {totalDurationLabel}</span>
+              </span>
+            </div>
+
+            <div className="flex min-h-9 items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-1 flex-wrap gap-2 text-xs font-medium">
+                {netScheduleSeconds !== 0 && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-2.5 py-1",
+                      netScheduleSeconds > 0
+                        ? "border-green-500/30 bg-green-500/10 text-green-500"
+                        : "border-red-500/30 bg-red-500/10 text-red-500"
+                    )}
+                  >
+                    {netScheduleSeconds > 0 ? (
+                      <Zap className="h-3.5 w-3.5" />
+                    ) : (
+                      <Clock className="h-3.5 w-3.5" />
+                    )}
+                    {formatTimer(netScheduleAbsSeconds)} {netScheduleSeconds > 0 ? "ahead" : "behind"}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex shrink-0 justify-end gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 rounded-full px-0 text-[1.05rem] font-medium text-muted-foreground hover:bg-transparent"
+                  onClick={handleResetPractice}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reset
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 rounded-full px-0 text-[1.05rem] font-medium text-muted-foreground hover:bg-transparent"
+                  onClick={handleEndTimer}
+                >
+                  <Square className="h-4 w-4" />
+                  End
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {totalTimeRemaining === 0 && !showFeedback && (
+            <div className="space-y-3 border-t border-border/70 pt-4 text-center">
+              <p className="text-sm font-semibold text-green-500">Practice complete. Ready for feedback?</p>
+              <Button size="lg" className="h-12 w-full gap-2 rounded-[8px]" onClick={handleShowFeedback}>
+                <CheckCircle2 className="h-5 w-5" />
+                Leave Feedback
+              </Button>
             </div>
           )}
         </div>
-
-        <div className="space-y-3 pb-3 pt-5">
-          <div className="grid min-h-[7rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-border bg-muted/35 text-muted-foreground">
-              <Clock className="h-7 w-7" />
-            </span>
-            <span className="inline-flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
-              <span className="text-[2.3rem] font-bold leading-none tabular-nums">
-                {elapsedPracticeClock}
-              </span>
-              <span className="text-[1.25rem] font-medium text-muted-foreground">/ {totalDurationLabel}</span>
-            </span>
-          </div>
-
-          <div className="flex min-h-11 items-center justify-between gap-4">
-            <div className="flex min-w-0 flex-1 flex-wrap gap-2 text-xs font-medium">
-              {netScheduleSeconds !== 0 && (
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-1",
-                    netScheduleSeconds > 0
-                      ? "border-green-500/30 bg-green-500/10 text-green-500"
-                      : "border-red-500/30 bg-red-500/10 text-red-500"
-                  )}
-                >
-                  {netScheduleSeconds > 0 ? (
-                    <Zap className="h-3.5 w-3.5" />
-                  ) : (
-                    <Clock className="h-3.5 w-3.5" />
-                  )}
-                  {formatTimer(netScheduleAbsSeconds)} {netScheduleSeconds > 0 ? "ahead" : "behind"}
-                </span>
-              )}
-            </div>
-
-            <div className="flex shrink-0 justify-end gap-5">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 rounded-full px-0 text-[1.15rem] font-medium text-muted-foreground hover:bg-transparent"
-                onClick={handleResetPractice}
-              >
-                <RotateCcw className="h-5 w-5" />
-                Reset
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 rounded-full px-0 text-[1.15rem] font-medium text-muted-foreground hover:bg-transparent"
-                onClick={handleEndTimer}
-              >
-                <Square className="h-5 w-5" />
-                End
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {totalTimeRemaining === 0 && !showFeedback && (
-          <div className="space-y-3 border-t border-border/70 pt-4 text-center">
-            <p className="text-sm font-semibold text-green-500">Practice complete. Ready for feedback?</p>
-            <Button size="lg" className="h-12 w-full gap-2 rounded-[8px]" onClick={handleShowFeedback}>
-              <CheckCircle2 className="h-5 w-5" />
-              Leave Feedback
-            </Button>
-          </div>
-        )}
       </section>
 
       {showFeedback && (

@@ -439,7 +439,7 @@ export const drillService = {
       drillId: item.drill_id,
       duration: item.duration,
       notes: item.notes || undefined,
-      groups: item.groups as any,
+      groups: item.groups as PlanItem['groups'],
     }));
 
     return { plan, items: planItems };
@@ -449,7 +449,7 @@ export const drillService = {
     planId: string,
     updates: { name?: string; date?: Date; notes?: string; completed?: boolean }
   ): Promise<void> {
-    const dbUpdates: any = {};
+    const dbUpdates: Partial<Pick<DbPracticePlan, 'name' | 'date' | 'notes' | 'completed'>> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.date !== undefined) dbUpdates.date = updates.date.toISOString().split('T')[0];
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
