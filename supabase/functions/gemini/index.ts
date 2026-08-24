@@ -110,7 +110,8 @@ const parseGeminiJson = (text: string) => {
 
 const createAuthedSupabaseClient = (authorization: string) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const supabaseAnonKey =
+    Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return null;

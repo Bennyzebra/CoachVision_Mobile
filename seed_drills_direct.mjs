@@ -1,8 +1,8 @@
 // Direct database seeding script
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseClientConfig } from './scripts/supabase-env.mjs';
 
-const supabaseUrl = 'https://cjonngxtjunqdgvvtwfq.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqb25uZ3h0anVucWRndnZ0d2ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NDg0MTQsImV4cCI6MjA3NzEyNDQxNH0.0s9PYIU7OqarWEUg3ftS5UY5fObsaGgg_xvCXlkRt9Y';
+const { url: supabaseUrl, key: supabaseKey } = getSupabaseClientConfig();
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

@@ -44,11 +44,16 @@ npm run ios:copy
 The Xcode project also runs this copy step before bundling resources so local Xcode launches do not use
 stale Supabase configuration.
 
-Gemini requests are handled by the `gemini` Supabase Edge Function so the API key is not exposed in the browser bundle. Configure Gemini as a Supabase secret instead of a `VITE_` variable:
+Gemini requests are handled by the `gemini` Supabase Edge Function so the API key is not exposed in the browser bundle. Configure Gemini and Supabase client values as Supabase secrets instead of `VITE_` variables:
 
 ```sh
-set GEMINI_API_KEY=...
+supabase secrets set \
+  SUPABASE_URL=... \
+  SUPABASE_PUBLISHABLE_KEY=... \
+  GEMINI_API_KEY=...
 ```
+
+`SUPABASE_ANON_KEY` is also accepted for older function environments.
 
 Optional: override the default model with `GEMINI_MODEL` if you need to try a different Gemini variant.
 Use the actual model id, not the display name. Good examples are `gemini-2.5-flash-lite` and `gemini-3-flash-preview`.
