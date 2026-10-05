@@ -3,12 +3,19 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "check:workspace": "node ./scripts/ensure-workspace.mjs",
+    "typecheck": "npm run check:workspace && tsc --noEmit -p tsconfig.app.json",
+    "test": "node ./scripts/run-tests.mjs",
+    "verify": "npm run check:workspace && npm run typecheck && npm run lint && npm run test && npm run build",
+    "verify:db": "node --env-file=.env ./scripts/check-supabase-schema.mjs",
     "dev": "npm run check:workspace && vite",
     "build": "npm run check:workspace && vite build",
     "build:dev": "npm run check:workspace && vite build --mode development",
-    "lint": "eslint .",
+    "lint": "npm run check:workspace && eslint .",
     "preview": "npm run check:workspace && vite preview"
   },
   "dependencies": {

@@ -82,7 +82,7 @@ type DrillTitleFit = {
 };
 
 const calculatePlanDuration = (planDetails: Practice["plan_details"]) => {
-  const sumDurations = (drills: Practice["plan_details"][keyof Practice["plan_details"]]) =>
+  const sumDurations = (drills: Practice["plan_details"]["warmup" | "main_segment" | "cool_down"]) =>
     drills.reduce((total, drill) => total + (Number(drill.duration) || 0), 0);
 
   return (

@@ -293,6 +293,69 @@ export type Database = {
           },
         ]
       }
+      practices: {
+        Row: {
+          coach_id: string
+          completed_at: string | null
+          created_at: string
+          duration: number
+          feedback_notes: string | null
+          feedback_rating: number | null
+          id: string
+          notes: string | null
+          plan_details: Json
+          scheduled_date: string | null
+          team_id: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          completed_at?: string | null
+          created_at?: string
+          duration: number
+          feedback_notes?: string | null
+          feedback_rating?: number | null
+          id?: string
+          notes?: string | null
+          plan_details?: Json
+          scheduled_date?: string | null
+          team_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          completed_at?: string | null
+          created_at?: string
+          duration?: number
+          feedback_notes?: string | null
+          feedback_rating?: number | null
+          id?: string
+          notes?: string | null
+          plan_details?: Json
+          scheduled_date?: string | null
+          team_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practices_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practices_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practice_plan_items: {
         Row: {
           drill_id: string

@@ -213,3 +213,50 @@ All colors MUST be HSL.
     transform: translateX(0);
   }
 }
+
+@keyframes player-card-expand {
+  from {
+    height: 0;
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes player-card-collapse {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    height: 0;
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+}
+
+.player-card-collapsible {
+  overflow: hidden;
+  transform-origin: top;
+  will-change: height, opacity, transform;
+}
+
+.player-card-collapsible[data-state="open"] {
+  animation: player-card-expand 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.player-card-collapsible[data-state="closed"] {
+  animation: player-card-collapse 220ms ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-card-collapsible[data-state="open"],
+  .player-card-collapsible[data-state="closed"] {
+    animation-duration: 1ms;
+  }
+}

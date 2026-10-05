@@ -6,9 +6,9 @@ test("Gemini function caller forwards abort signals to Supabase invoke", async (
   const controller = new AbortController();
   let receivedSignal: AbortSignal | undefined;
 
-  const callGeminiFunction = createGeminiFunctionCaller(async (_name, options) => {
+  const callGeminiFunction = createGeminiFunctionCaller(async <T>(_name, options) => {
     receivedSignal = options.signal;
-    return { data: { ok: true }, error: null };
+    return { data: { ok: true } as T, error: null };
   });
 
   await callGeminiFunction("generatePracticePlan", { drills: [] }, { signal: controller.signal });

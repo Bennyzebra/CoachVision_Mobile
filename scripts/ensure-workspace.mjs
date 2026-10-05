@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { assertLocalFiles } from "./check-local-files.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultWorkspace = path.resolve(scriptDir, "..");
@@ -39,5 +40,5 @@ export async function assertWorkspace({
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await assertWorkspace();
+  if (await assertWorkspace()) assertLocalFiles();
 }

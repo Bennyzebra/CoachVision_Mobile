@@ -21,6 +21,7 @@ const Discover = () => {
   
   useEffect(() => {
     if (state.drills.length === 0 && !hasLoadedDrills) {
+      void loadDrillsFromDatabase();
     }
   }, [state.drills.length, hasLoadedDrills, loadDrillsFromDatabase]);
   // Get drill IDs already in the plan

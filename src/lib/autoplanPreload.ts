@@ -9,42 +9,43 @@ let drillsPromise: Promise<Drill[]> | null = null;
 const playersCache = new Map<string, TeamPlayers>();
 const playersPromise = new Map<string, Promise<TeamPlayers>>();
 
-const mapDrills = (drills: Array<Record<string, any>>): Drill[] =>
+type DrillRow = Record<string, unknown>;
+
+const mapDrills = (drills: DrillRow[]): Drill[] =>
   drills.map((d) => ({
-    id: d.id,
-    name: d.name,
-    focus: d.focus || d.category || "offense",
-    duration: d.duration || d.duration_min || 10,
-    rating: d.rating || 0,
-    verified: d.verified || false,
-    description: d.description || "",
-    cues: d.cues || [],
-    tags: d.focus_tags || d.tags || [],
-    mediaUrl: d.media_url,
-    minPlayers: d.min_players,
-    maxPlayers: d.max_players,
-    optimalGroupSize: d.optimal_group_size,
-    level: d.level,
-    intensity: d.intensity,
-    positionsEmphasis: d.positions_emphasis,
-    requiresFullCourt: d.requires_full_court,
+    id: d.id as string,
+    name: d.name as string,
+    focus: (d.focus ?? d.category ?? "offense") as Drill["focus"],
+    duration: Number(d.duration ?? d.duration_min ?? 10),
+    rating: Number(d.rating ?? 0),
+    verified: Boolean(d.verified),
+    description: (d.description as string | undefined) ?? "",
+    cues: (d.cues as string[] | undefined) ?? [],
+    tags: (d.focus_tags as string[] | undefined) ?? (d.tags as string[] | undefined) ?? [],
+    mediaUrl: d.media_url as string | undefined,
+    minPlayers: d.min_players as number | undefined,
+    maxPlayers: d.max_players as number | undefined,
+    optimalGroupSize: d.optimal_group_size as number | undefined,
+    level: d.level as Drill["level"],
+    intensity: d.intensity as Drill["intensity"],
+    positionsEmphasis: d.positions_emphasis as Drill["positionsEmphasis"],
+    requiresFullCourt: d.requires_full_court as boolean | undefined,
   }));
 
 const fetchAllDrills = async (): Promise<Drill[]> => {
   if (drillsCache) return drillsCache;
   if (drillsPromise) return drillsPromise;
 
-  drillsPromise = supabase
-    .from("drills")
-    .select("*")
-    .then(({ data, error }) => {
+  drillsPromise = Promise.resolve(
+    supabase.from("drills").select("*").then(({ data, error }) => {
       if (error || !data) {
         return [];
       }
-      const mapped = mapDrills(data);
+      const mapped = mapDrills(data as unknown as DrillRow[]);
       drillsCache = mapped;
       return mapped;
     })
+  )
     .finally(() => {
       drillsPromise = null;
     });
@@ -56,11 +57,8 @@ const fetchTeamPlayers = async (teamId: string): Promise<TeamPlayers> => {
   if (playersCache.has(teamId)) return playersCache.get(teamId) ?? [];
   if (playersPromise.has(teamId)) return playersPromise.get(teamId) ?? Promise.resolve([]);
 
-  const request = supabase
-    .from("players")
-    .select("*")
-    .eq("team_id", teamId)
-    .then(({ data }) => {
+  const request = Promise.resolve(
+    supabase.from("players").select("*").eq("team_id", teamId).then(({ data }) => {
       if (!data) return [];
       const normalized: TeamPlayers = data.map((p) => ({
         id: p.id,
@@ -73,6 +71,7 @@ const fetchTeamPlayers = async (teamId: string): Promise<TeamPlayers> => {
       playersCache.set(teamId, normalized);
       return normalized;
     })
+  )
     .finally(() => {
       playersPromise.delete(teamId);
     });

@@ -24,11 +24,45 @@ If you need to override the expected workspace path, set `COACHVISION_WORKSPACE`
 
 ## Environment Setup
 
+Use Node.js 22.18 or newer and install the locked dependencies with `npm ci`.
+
+### Build speed and local files
+
+Keep this checkout downloaded locally. On macOS, iCloud can offload files in
+Documents/Desktop, including `node_modules`; builds then wait for downloads
+instead of using the CPU. The workspace check detects offloaded dependencies
+before starting the build, type checker, linter, or tests. If it reports one,
+choose **Keep Downloaded** for the checkout in Finder, or keep the checkout
+outside cloud-synced folders. Reinstall missing/offloaded dependencies with
+`npm ci` once any running build has stopped.
+
+### Tests
+
+`npm test` discovers `.test.ts`, `.test.mjs`, `.test.js`, and `.test.cjs` files
+under `src`, `scripts`, `supabase/functions`, and `ios/App/App`. Unsupported
+test names (including numbered duplicate copies and TSX) fail discovery instead
+of being silently skipped. The Node runner does not render JSX.
+
+The suite contains executable unit tests and source-structure checks. The latter
+do not establish browser interaction correctness; use behavioral tests for
+logic regressions and browser/device testing for rendered interactions.
+`npm run verify` runs type checking, lint, tests, and the production build.
+When committing these changes, include the new `scripts/*.mjs` files along with
+`package.json` and `package-lock.json` so a clean checkout has the same checks.
+
 Local Vite `.env` files should only include browser-safe Supabase client values:
 
 ```sh
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_PUBLISHABLE_KEY=...
+```
+
+Verify the app, then confirm the configured live database exposes every table
+and column used by the current routes:
+
+```sh
+npm run verify
+npm run verify:db
 ```
 
 Gemini requests are handled by the `gemini` Supabase Edge Function so the API key is not exposed in the browser bundle. Configure Gemini as a Supabase secret instead of a `VITE_` variable:

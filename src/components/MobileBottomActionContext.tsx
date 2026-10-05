@@ -23,6 +23,10 @@ export type MobileBottomSegmentedActionRegistration = {
   variant: "segmented";
   active: boolean;
   segments: MobileBottomSegmentedAction[];
+  progress?: {
+    value: number;
+    label: string;
+  };
   activeSegmentIndex?: number;
   swipeEnabled?: boolean;
   onSwipeLeftToRight?: () => void;

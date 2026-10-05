@@ -776,10 +776,10 @@ const AutoPlan = () => {
     minPlayers: d.min_players as number | undefined,
     maxPlayers: d.max_players as number | undefined,
     optimalGroupSize: d.optimal_group_size as number | undefined,
-    level: d.level,
-    intensity: d.intensity,
+    level: d.level as Drill["level"],
+    intensity: d.intensity as Drill["intensity"],
     positionsEmphasis: d.positions_emphasis,
-    requiresFullCourt: d.requires_full_court,
+    requiresFullCourt: d.requires_full_court as boolean | undefined,
   });
 
   const generateDemoPlan = () => {
@@ -1260,7 +1260,7 @@ const AutoPlan = () => {
                 Create your first team to start using Auto-Plan and generate AI-powered practice plans.
               </p>
             </div>
-            <Button size="lg" className="gap-2" onClick={() => navigate("/settings")}>
+            <Button size="lg" className="gap-2" onClick={() => navigate("/onboarding")}>
               <UserPlus className="w-5 h-5" />
               Create Team
             </Button>

@@ -298,7 +298,7 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
       return "Suggestions";
     }
     if (pathname.startsWith("/onboarding")) {
-      return "Onboarding";
+      return "Create Team";
     }
     if (pathname.startsWith("/upgrade")) {
       return "Upgrade";
@@ -771,61 +771,78 @@ export const SearchBar = ({ placement = "default" }: SearchBarProps) => {
 
   if (isSegmentedActionActive && mobileBottomAction?.variant === "segmented") {
     return (
-      <div
-        ref={setContainerNode}
-        onPointerDown={handleSegmentedPointerDown}
-        onPointerMove={handleSegmentedPointerMove}
-        onPointerUp={handleSegmentedPointerEnd}
-        onPointerCancel={handleSegmentedPointerCancel}
-        className="relative flex h-12 w-[19rem] max-w-[calc(100vw-2rem)] touch-pan-y items-center overflow-hidden rounded-full bg-muted px-2 shadow-sm"
-      >
-        <span
-          className="pointer-events-none absolute top-1 h-10 rounded-full bg-[#168dff] shadow-sm will-change-transform"
-          style={{
-            width: `${segmentedHighlightStyle.width}px`,
-            transform: `translate3d(${segmentedHighlightStyle.x}px, 0, 0)`,
-            transition:
-              segmentedSwipeIntentRef.current === "horizontal"
-                ? "none"
-                : `transform ${MOBILE_CONTROL_MOTION}, width ${MOBILE_CONTROL_MOTION}`,
-          }}
-          aria-hidden="true"
-        />
-        {mobileBottomAction.segments.map((segment, index) => (
-          <Fragment key={segment.id ?? segment.label}>
-            <button
-              type="button"
-              onClick={() => {
-                if (suppressClickRef.current) return;
-                segment.onClick();
-              }}
-              disabled={segment.disabled}
-              className={cn(
-                "group relative z-10 flex h-10 min-w-0 items-center justify-center gap-2 rounded-full px-2 text-base font-medium transition-[transform,color,background-color] duration-150 ease-out active:scale-[0.96] disabled:pointer-events-none disabled:opacity-35 motion-reduce:transition-none",
-                segment.primary ? "flex-[1.08]" : "flex-[0.96]",
-                (segmentedSwipeTargetIndex ?? segmentedActiveSegmentIndex) === index
-                  ? "text-white"
-                  : "text-muted-foreground active:bg-background/50 active:text-foreground"
-              )}
-              aria-label={segment.label}
-              title={segment.label}
-            >
-              {segment.label === "Next" ? (
-                <AnimatedSegmentContent segment={segment} iconAfterLabel />
-              ) : (
-                <AnimatedSegmentContent segment={segment} />
-              )}
-            </button>
-            {index < mobileBottomAction.segments.length - 1 && (
-              <div
+      <div className="flex w-[19rem] max-w-[calc(100vw-2rem)] flex-col items-center gap-1">
+        <div
+          ref={setContainerNode}
+          onPointerDown={handleSegmentedPointerDown}
+          onPointerMove={handleSegmentedPointerMove}
+          onPointerUp={handleSegmentedPointerEnd}
+          onPointerCancel={handleSegmentedPointerCancel}
+          className="relative flex h-12 w-[19rem] max-w-[calc(100vw-2rem)] touch-pan-y items-center overflow-hidden rounded-full bg-muted px-2 shadow-sm"
+        >
+          <span
+            className="pointer-events-none absolute top-1 h-10 rounded-full bg-[#168dff] shadow-sm will-change-transform"
+            style={{
+              width: `${segmentedHighlightStyle.width}px`,
+              transform: `translate3d(${segmentedHighlightStyle.x}px, 0, 0)`,
+              transition:
+                segmentedSwipeIntentRef.current === "horizontal"
+                  ? "none"
+                  : `transform ${MOBILE_CONTROL_MOTION}, width ${MOBILE_CONTROL_MOTION}`,
+            }}
+            aria-hidden="true"
+          />
+          {mobileBottomAction.segments.map((segment, index) => (
+            <Fragment key={segment.id ?? segment.label}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (suppressClickRef.current) return;
+                  segment.onClick();
+                }}
+                disabled={segment.disabled}
                 className={cn(
-                  "relative z-10 mx-1 h-7 w-[1px] shrink-0 bg-border/70 transition-opacity",
-                  isSeparatorCoveredByHighlight(index) && "opacity-0"
+                  "group relative z-10 flex h-10 min-w-0 items-center justify-center gap-2 rounded-full px-2 text-base font-medium transition-[transform,color,background-color] duration-150 ease-out active:scale-[0.96] disabled:pointer-events-none disabled:opacity-35 motion-reduce:transition-none",
+                  segment.primary ? "flex-[1.08]" : "flex-[0.96]",
+                  (segmentedSwipeTargetIndex ?? segmentedActiveSegmentIndex) === index
+                    ? "text-white"
+                    : "text-muted-foreground active:bg-background/50 active:text-foreground"
                 )}
-              />
-            )}
-          </Fragment>
-        ))}
+                aria-label={segment.label}
+                title={segment.label}
+              >
+                {segment.label === "Next" ? (
+                  <AnimatedSegmentContent segment={segment} iconAfterLabel />
+                ) : (
+                  <AnimatedSegmentContent segment={segment} />
+                )}
+              </button>
+              {index < mobileBottomAction.segments.length - 1 && (
+                <div
+                  className={cn(
+                    "relative z-10 mx-1 h-7 w-[1px] shrink-0 bg-border/70 transition-opacity",
+                    isSeparatorCoveredByHighlight(index) && "opacity-0"
+                  )}
+                />
+              )}
+            </Fragment>
+          ))}
+        </div>
+        {mobileBottomAction.progress && (
+          <div
+            className="h-1 w-[calc(100%-1.5rem)] overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-label={mobileBottomAction.progress.label}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(mobileBottomAction.progress.value)}
+          >
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
+              style={{ width: `${Math.min(100, Math.max(0, mobileBottomAction.progress.value))}%` }}
+            />
+          </div>
+        )}
       </div>
     );
   }

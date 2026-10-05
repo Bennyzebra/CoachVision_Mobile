@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { Drill } from "@/types";
 import { updateTeamProfileFromFeedback, updateTeamProfileFromPracticePlan } from "@/services/teamProfileService";
 
@@ -96,7 +97,7 @@ export const savePractice = async (
         coach_id: coachId,
         team_id: teamId,
         duration,
-        plan_details: planDetails,
+        plan_details: planDetails as unknown as Json,
         title: title?.trim() || null,        
       })
       .select()
@@ -112,7 +113,7 @@ export const savePractice = async (
       }
     }
     
-    return { data, error: null };
+    return { data: data as unknown as Practice | null, error: null };
   } catch (error) {
     console.error("Error saving practice:", error);
     return { data: null, error: error as Error };
@@ -131,7 +132,7 @@ export const getPractice = async (
 
     if (error) throw error;
 
-    return { data: data ? normalizePractice(data as Practice) : null, error: null };
+    return { data: data ? normalizePractice(data as unknown as Practice) : null, error: null };
   } catch (error) {
     console.error("Error fetching practice:", error);
     return { data: null, error: error as Error };
@@ -233,7 +234,7 @@ export const getCoachPractices = async (
 
     if (error) throw error;
 
-    return { data, error: null };
+    return { data: data as unknown as Practice[] | null, error: null };
   } catch (error) {
     console.error("Error fetching practices:", error);
     return { data: null, error: error as Error };
@@ -296,7 +297,7 @@ export const listPractices = async ({
 
     return {
       data: {
-        data: (data ?? []).map((item) => normalizePractice(item as Practice)),
+        data: (data ?? []).map((item) => normalizePractice(item as unknown as Practice)),
         total: count ?? 0,
       },
       error: null,
@@ -315,7 +316,10 @@ export const updatePractice = async (
   try {
     const { data, error } = await supabase
       .from("practices")
-      .update(updates)
+      .update({
+        ...updates,
+        plan_details: updates.plan_details as unknown as Json | undefined,
+      })
       .eq("id", practiceId)
       .eq("coach_id", coachId)
       .select("*")
@@ -323,7 +327,7 @@ export const updatePractice = async (
 
     if (error) throw error;
 
-    return { data: data ? normalizePractice(data as Practice) : null, error: null };
+    return { data: data ? normalizePractice(data as unknown as Practice) : null, error: null };
   } catch (error) {
     console.error("Error updating practice:", error);
     return { data: null, error: error as Error };
@@ -354,7 +358,7 @@ export const duplicatePractice = async (
         coach_id: coachId,
         team_id: teamId ?? source.team_id,
         duration: source.duration,
-        plan_details: source.plan_details,
+        plan_details: source.plan_details as unknown as Json,
         title: source.title,
         notes: source.notes,
         scheduled_date: null,
@@ -364,7 +368,7 @@ export const duplicatePractice = async (
 
     if (error) throw error;
 
-    return { data: data ? normalizePractice(data as Practice) : null, error: null };
+    return { data: data ? normalizePractice(data as unknown as Practice) : null, error: null };
   } catch (error) {
     console.error("Error duplicating practice:", error);
     return { data: null, error: error as Error };

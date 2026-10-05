@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { getAuthErrorMessage } from "@/lib/supabaseAuthError";
 import logo from "@/assets/CoachVision_Final.png";
 
 const Auth = () => {
@@ -92,18 +93,14 @@ const Auth = () => {
         }
         toast({
           title: "Account created!",
-          description: "Launching your onboarding tour...",
+          description: "Let’s set up your first team...",
         });
         navigate("/onboarding");
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred.";
       toast({
         title: "Error",
-        description: errorMessage,
+        description: getAuthErrorMessage(error, "An unexpected error occurred."),
         variant: "destructive",
       });
     } finally {
@@ -123,7 +120,7 @@ const Auth = () => {
     if (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: getAuthErrorMessage(error, "Unable to sign in with Google right now."),
         variant: "destructive",
       });
       setGoogleLoading(false);
@@ -154,14 +151,9 @@ const Auth = () => {
         description: "Check your inbox for a password reset link.",
       });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Unable to send reset instructions right now.";
-
       toast({
         title: "Couldn't send reset email",
-        description: errorMessage,
+        description: getAuthErrorMessage(error, "Unable to send reset instructions right now."),
         variant: "destructive",
       });
     } finally {

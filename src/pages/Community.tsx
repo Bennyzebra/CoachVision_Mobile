@@ -27,6 +27,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unknown error";
+
 export default function Community() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"following" | "trending" | "latest">("trending");
@@ -106,10 +109,10 @@ export default function Community() {
         owner_profile: profileMap.get(item.owner_user_id)
       }));
 
-      setItems(itemsWithProfiles as any);
-    } catch (error: any) {
+      setItems(itemsWithProfiles as unknown as SharedItem[]);
+    } catch (error) {
       console.error("Feed load error:", error);
-      toast.error(`Failed to load feed: ${error.message || 'Unknown error'}`);
+      toast.error(`Failed to load feed: ${getErrorMessage(error)}`);
     } finally {
       setLoading(false);
     }
@@ -186,9 +189,9 @@ export default function Community() {
       toast.success("Post deleted successfully");
       setDeleteItemId(null);
       loadFeed();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Delete error:", error);
-      toast.error(`Failed to delete: ${error.message || 'Unknown error'}`);
+      toast.error(`Failed to delete: ${getErrorMessage(error)}`);
     }
   };
 
@@ -216,7 +219,10 @@ export default function Community() {
               className="pl-10"
             />
           </div>
-          <Select value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+          <Select
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as "following" | "trending" | "latest")}
+          >
             <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue />
             </SelectTrigger>

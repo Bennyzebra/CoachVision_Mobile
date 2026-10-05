@@ -202,7 +202,9 @@ const Team = () => {
   const playerCountLabel = `${config.totalPlayers} ${config.totalPlayers === 1 ? "player" : "players"}`;
   const positionAssignmentLabel = getPositionAssignmentLabel(totalPositions, config.totalPlayers);
   const positionsBalanced = totalPositions === config.totalPlayers;
-  const teamLogoUrl = pendingLogoPreviewUrl ?? currentTeam.logo_url;
+  // Team data loads asynchronously. Keep the initial no-team render safe while
+  // the context determines whether the coach has a team to display.
+  const teamLogoUrl = pendingLogoPreviewUrl ?? currentTeam?.logo_url ?? null;
 
   const handleTeamNameSave = async () => {
     if (!currentTeam || !teamNameInput.trim() || teamNameInput === currentTeam.team_name) {

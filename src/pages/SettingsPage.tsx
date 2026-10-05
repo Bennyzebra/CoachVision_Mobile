@@ -1,7 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "@/hooks/useAppState";
-import { useTeam } from "@/contexts/TeamContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Lock, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { IntensityPreference } from "@/types";
 import { toast } from "sonner";
@@ -84,10 +83,11 @@ type SettingsSectionProps = {
   description?: string;
   children: ReactNode;
   destructive?: boolean;
+  className?: string;
 };
 
-const SettingsSection = ({ id, title, description, children, destructive = false }: SettingsSectionProps) => (
-  <section id={id} className="scroll-mt-28">
+const SettingsSection = ({ id, title, description, children, destructive = false, className = "" }: SettingsSectionProps) => (
+  <section id={id} className={`scroll-mt-28 ${className}`}>
     <div className="mb-3">
       <h2 className={`text-lg font-semibold ${destructive ? "text-destructive" : "text-foreground"}`}>{title}</h2>
       {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
@@ -104,13 +104,13 @@ const SettingsSection = ({ id, title, description, children, destructive = false
 
 const SettingsPage = () => {
   const { state, updateProfile, exportData } = useAppState();
-  const { currentTeam } = useTeam();
-  const { profile: authProfile, updateProfile: updateAuthProfile } = useAuth();
+  const { user, profile: authProfile, updateProfile: updateAuthProfile } = useAuth();
   const navigate = useNavigate();
+  const authenticatedEmail = user?.email ?? authProfile?.email ?? "";
   
   const [profileForm, setProfileForm] = useState({
     coachName: state.profile.coachName || authProfile?.coach_name || "Coach",
-    email: state.profile.email || authProfile?.email || "",
+    email: authenticatedEmail,
     sport: state.profile.sport || "Basketball",
     organization: state.profile.organization || authProfile?.organization || "",
   });
@@ -144,14 +144,14 @@ const SettingsPage = () => {
     setProfileForm((prev) => ({
       ...prev,
       coachName: state.profile.coachName || authProfile?.coach_name || prev.coachName,
-      email: state.profile.email || authProfile?.email || prev.email,
+      email: authenticatedEmail || prev.email,
       sport: state.profile.sport || prev.sport,
       organization: state.profile.organization || authProfile?.organization || prev.organization,
     }));
   }, [
     authProfile?.coach_name,
-    authProfile?.email,
     authProfile?.organization,
+    authenticatedEmail,
     state.profile.coachName,
     state.profile.email,
     state.profile.organization,
@@ -204,7 +204,7 @@ const SettingsPage = () => {
   const handleCancelProfileEdit = () => {
     setProfileForm({
       coachName: state.profile.coachName || authProfile?.coach_name || "Coach",
-      email: state.profile.email || authProfile?.email || "",
+      email: authenticatedEmail,
       sport: state.profile.sport || "Basketball",
       organization: state.profile.organization || authProfile?.organization || "",
     });
@@ -296,42 +296,25 @@ const SettingsPage = () => {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-12 sm:space-y-8">
-      <header className="space-y-3">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-            <p className="text-sm text-muted-foreground">
-              Tune your account, practice defaults, notifications, and access preferences.
-            </p>
-          </div>
+      <nav className="sticky top-0 z-10 -mx-4 border-y border-border/60 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:-mx-2 md:px-2" aria-label="Settings sections">
+        <div className="touch-scroll flex gap-1 overflow-x-auto md:flex-wrap">
+          {sections.map((section) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              className="shrink-0 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              {section.label}
+            </a>
+          ))}
         </div>
-
-        <div className="sticky top-0 z-10 -mx-4 border-y border-border/60 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:-mx-2 md:px-2">
-          <div className="touch-scroll flex gap-1 overflow-x-auto md:flex-wrap">
-            {sections.map((section) => (
-              <a
-                key={section.id}
-                href={`#${section.id}`}
-                className="shrink-0 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                {section.label}
-              </a>
-            ))}
-          </div>
-        </div>
-      </header>
+      </nav>
 
       <SettingsSection
         id="account"
         title="Account & Profile"
-        description="Manage your coach identity and team profile details."
+        className="!mt-3 sm:!mt-4"
       >
-        <SettingRow
-          label="Workspace"
-          description="Current team context used across CoachVision."
-          control={<Badge variant="outline">{currentTeam?.team_name || "Personal profile"}</Badge>}
-        />
         {isEditingProfile ? (
           <>
             <SettingRow

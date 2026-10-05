@@ -108,19 +108,19 @@ function toInches(h?: string): number {
 }
 
 export function computeStats(attending: SessionContext["attending"]) {
-  const present = attending.filter(p => (p as any).present !== false);
+  const present = attending.filter((player) => player.present !== false);
   const total = present.length;
   const guards = present.filter(p => p.position === "G").length;
   const forwards = present.filter(p => p.position === "F").length;
   const centers = present.filter(p => p.position === "C").length;
 
-  const heights = present.map(p => toInches((p as any).height)).filter(n => n > 0);
+  const heights = present.map((player) => toInches(player.height)).filter((height) => height > 0);
   const avgHeight = heights.length ? heights.reduce((a,b)=>a+b,0)/heights.length : 72;
 
   // majority level (fallback intermediate)
   const levelVotes: Record<TeamLevel, number> = { beginner: 0, intermediate: 0, advanced: 0 };
-  present.forEach(p => {
-    const lvl = ((p as any).experience || "intermediate") as TeamLevel;
+  present.forEach((player) => {
+    const lvl = player.experience ?? "intermediate";
     levelVotes[lvl] = (levelVotes[lvl] || 0) + 1;
   });
   const majorityLevel = (Object.entries(levelVotes).sort((a,b)=>b[1]-a[1])[0]?.[0] || "intermediate") as TeamLevel;

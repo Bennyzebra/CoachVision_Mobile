@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import {
   extractFeedbackInsights,
   mergeTeamProfileSummary,
@@ -18,7 +19,7 @@ const fetchTeamProfileSummary = async (teamId: string) => {
     throw error;
   }
 
-  return (data?.team_profile_summary as TeamProfileSummary | null | undefined) ?? null;
+  return (data?.team_profile_summary as unknown as TeamProfileSummary | null | undefined) ?? null;
 };
 
 export const updateTeamProfileFromPracticePlan = async (teamId: string, plan: PracticePlanSummary) => {
@@ -31,7 +32,7 @@ export const updateTeamProfileFromPracticePlan = async (teamId: string, plan: Pr
 
   const { error } = await supabase
     .from("teams")
-    .update({ team_profile_summary: nextSummary })
+    .update({ team_profile_summary: nextSummary as unknown as Json })
     .eq("id", teamId);
 
   if (error) {
@@ -53,7 +54,7 @@ export const updateTeamProfileFromFeedback = async (teamId: string, feedbackNote
 
   const { error } = await supabase
     .from("teams")
-    .update({ team_profile_summary: nextSummary })
+    .update({ team_profile_summary: nextSummary as unknown as Json })
     .eq("id", teamId);
 
   if (error) {

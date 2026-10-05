@@ -42,8 +42,14 @@ export interface DrillData {
   duration?: number;
   intensity?: number;
   focus_tags?: string[];
-  [key: string]: unknown;
 }
+
+export type GeneratedPracticePlanResult = {
+  warmup: Array<Record<string, unknown>>;
+  main_segment: Array<Record<string, unknown>>;
+  cool_down: Array<Record<string, unknown>>;
+  coach_notes: string;
+};
 
 export async function parseSearchIntent(searchText: string): Promise<PracticeIntent> {
   try {
@@ -65,7 +71,7 @@ export async function generatePracticePlan(
       throw new Error("No drills available. Please add drills to your library first.");
     }
 
-    return await callGeminiFunction("generatePracticePlan", {
+    return await callGeminiFunction<GeneratedPracticePlanResult>("generatePracticePlan", {
       coachRequirements,
       availableDrills,
       preferredDrillIds,

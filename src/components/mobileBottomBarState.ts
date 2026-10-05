@@ -31,7 +31,7 @@ export const getMobileBottomBarState = (pathname: string): MobileBottomBarState 
     };
   }
 
-  if (pathname.startsWith("/drill")) {
+  if (pathname === "/drill" || pathname.startsWith("/drill/")) {
     return {
       label: "Drill Details",
       routeKey: "drill",
@@ -97,8 +97,8 @@ export const getMobileBottomBarState = (pathname: string): MobileBottomBarState 
 
   if (pathname.startsWith("/onboarding")) {
     return {
-      label: "Onboarding",
-      routeKey: "onboarding",
+      label: "Create Team",
+      routeKey: "create-team",
       widthClass: MOBILE_BOTTOM_BAR_WIDTH_CLASS,
     };
   }
@@ -117,4 +117,3 @@ export const getMobileBottomBarState = (pathname: string): MobileBottomBarState 
     widthClass: MOBILE_BOTTOM_BAR_WIDTH_CLASS,
   };
 };
-

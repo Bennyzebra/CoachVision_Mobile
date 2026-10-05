@@ -60,6 +60,12 @@ test("Mobile bottom actions support a segmented run-practice control bar", () =>
   assert.match(searchBarSource, /segment\.primary/);
 });
 
+test("Segmented mobile actions can show progress below the dynamic island", () => {
+  assert.match(actionContextSource, /progress\?: \{/);
+  assert.match(searchBarSource, /role="progressbar"/);
+  assert.match(searchBarSource, /mobileBottomAction\.progress\.value/);
+});
+
 test("RunPractice wires segmented swipe gestures to previous and next drills", () => {
   assert.match(runPracticeSource, /activeSegmentIndex: 1/);
   assert.match(runPracticeSource, /id: "timer-toggle"/);

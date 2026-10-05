@@ -2,6 +2,7 @@ export type DrillFocus = "offense" | "defense" | "passing" | "conditioning";
 export type Position = "G" | "F" | "C";
 export type Experience = "beginner" | "intermediate" | "advanced";
 export type DrillFeedbackRating = 1 | 2 | 3 | 4 | 5;
+export type Mood = "happy" | "meh" | "sad";
 
 export interface Drill {
   id: string;
@@ -45,7 +46,9 @@ export interface Player {
 
 export interface FeedbackItem {
   drillId: string;
- rating: DrillFeedbackRating;
+  mood: Mood;
+  comment?: string;
+  rating?: DrillFeedbackRating;
   notes?: string;
 }
 

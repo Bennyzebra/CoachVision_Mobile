@@ -58,8 +58,8 @@ const { state } = useAppState();
         if (!entry.lastDate || new Date(session.dateISO) > new Date(entry.lastDate)) {
           entry.lastDate = session.dateISO;
         }
-        if (session.comment) {
-          entry.comments.push({ dateISO: session.dateISO, text: session.comment });
+        if (session.practiceNotes) {
+          entry.comments.push({ dateISO: session.dateISO, text: session.practiceNotes });
         }
         acc[item.drillId] = entry;
       });

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { createAuthBootstrapController } from "@/lib/authBootstrap";
 import { useNavigate } from "react-router-dom";
 
 interface Profile {
@@ -15,7 +16,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-    updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -24,7 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   loading: true,
-    updateProfile: async () => {},
+  updateProfile: async () => {},
   signOut: async () => {},
 });
 
@@ -40,7 +41,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const ensureProfilesExist = async (userId: string, userEmail: string | undefined) => {
       try {
-                // 1) Ensure a row exists in profiles
         const { data: existingProfile } = await supabase
           .from("profiles")
           .select("*")
@@ -68,7 +68,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           profileRow = insertedProfile;
         }
 
-        // 2) Ensure a row exists in coach_profiles and capture org info
         const { data: existingCoachProfile } = await supabase
           .from("coach_profiles")
           .select("id, coach_name, email, organization")
@@ -95,58 +94,70 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           coachProfileRow = insertedCoachProfile ?? null;
         }
 
-        const organization = coachProfileRow?.organization ?? (coachProfileRow as { org?: string | null } | null)?.org ?? null;
-                if (profileRow) {
+        const organization =
+          coachProfileRow?.organization ??
+          (coachProfileRow as { org?: string | null } | null)?.org ??
+          null;
+
+        if (profileRow && bootstrap.isUserCurrent(userId)) {
           setProfile({
             id: profileRow.id,
             coach_name: profileRow.coach_name ?? "Coach",
             email: profileRow.email ?? null,
             organization,
-          });          
+          });
         }
       } catch (error) {
         console.error("Error ensuring profiles exist:", error);
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        (async () => {
-          setSession(session);
-          setUser(session?.user ?? null);
-
-          if (event === "PASSWORD_RECOVERY") {
-            navigate("/reset-password");
-          }
-          
-          if (session?.user) {
-            await ensureProfilesExist(session.user.id, session.user.email);
-          } else {
-            setProfile(null);
-          }
-
-          setLoading(false);
-        })();
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      (async () => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          await ensureProfilesExist(session.user.id, session.user.email);
-        }
-
+    const bootstrap = createAuthBootstrapController<Session>({
+      onSessionResolved: (nextSession) => {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
         setLoading(false);
-      })();
+      },
+      onProfileCleared: () => setProfile(null),
+      hydrateProfile: (nextUser) => ensureProfilesExist(nextUser.id, nextUser.email),
+      onPasswordRecovery: () => navigate("/reset-password"),
+      onProfileHydrationError: (error) => {
+        console.error("Error hydrating profile:", error);
+      },
     });
 
-    return () => subscription.unsubscribe();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      bootstrap.handleSession(event, nextSession);
+    });
+
+    void (async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error(`Unable to restore the Supabase session: ${error.message}`);
+        }
+
+        bootstrap.handleSession("INITIAL_SESSION", session);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.error(`Unable to restore the Supabase session: ${message}`);
+        bootstrap.handleSession("INITIAL_SESSION", null);
+      }
+    })();
+
+    return () => {
+      bootstrap.dispose();
+      subscription.unsubscribe();
+    };
   }, [navigate]);
-    
-    const updateProfile = async (updates: Partial<Profile>) => {
+
+  const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return;
 
     const filteredUpdates: Partial<Profile> = Object.fromEntries(

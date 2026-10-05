@@ -11,6 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { X, Plus } from "lucide-react";
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unknown error";
+
 export default function PublishContent() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -144,9 +147,9 @@ export default function PublishContent() {
       setTimeout(() => {
         navigate(`/community/item/${data.id}`);
       }, 500);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error publishing content:", error);
-      toast.error(`Failed to publish content: ${error.message || 'Unknown error'}`);
+      toast.error(`Failed to publish content: ${getErrorMessage(error)}`);
     } finally {
       setLoading(false);
     }
@@ -174,7 +177,7 @@ export default function PublishContent() {
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Content Type</Label>
-              <Select value={itemType} onValueChange={(v: any) => setItemType(v)}>
+              <Select value={itemType} onValueChange={(value) => setItemType(value as "drill" | "plan")}>
                 <SelectTrigger className="h-12 text-base">
                   <SelectValue placeholder="Choose what you're sharing" />
                 </SelectTrigger>
@@ -187,7 +190,10 @@ export default function PublishContent() {
 
             <div className="space-y-2">
               <Label>Visibility</Label>
-              <Select value={visibility} onValueChange={(v: any) => setVisibility(v)}>
+              <Select
+                value={visibility}
+                onValueChange={(value) => setVisibility(value as "public" | "followers" | "private")}
+              >
                 <SelectTrigger className="h-12 text-base">
                   <SelectValue placeholder="Who can see this post?" />
                 </SelectTrigger>

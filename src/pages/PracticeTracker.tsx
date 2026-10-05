@@ -168,8 +168,7 @@ const PracticeTracker = () => {
         scheduled_date: editDate ? new Date(editDate).toISOString() : null,
         notes: editNotes.trim() || null,
         plan_details: { ...editPlan, coach_notes: editNotes.trim() || "" },
-      },
-      selectedTeamId || undefined
+      }
     );
 
     if (error || !data) {

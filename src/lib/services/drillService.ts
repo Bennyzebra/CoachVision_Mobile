@@ -1,9 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Drill, PlanItem } from '@/types';
 import type { PostgrestError, User } from '@supabase/supabase-js';
+import type { Database, Json } from '@/integrations/supabase/types';
 export interface DbDrill {
   id: string;
-  coach_id: string;
+  coach_id: string | null;
   name: string;
   focus?: string | null;
   category?: string | null;
@@ -20,7 +21,7 @@ export interface DbDrill {
   min_players: number | null;
   max_players: number | null;
   optimal_group_size: number | null;
-  positions_emphasis: Record<string, number> | null;
+  positions_emphasis: Json | null;
   requires_full_court: boolean | null;
   media_url: string | null;
   is_template: boolean | null;
@@ -97,8 +98,8 @@ function dbDrillToDrill(dbDrill: DbDrill): Drill {
     description: dbDrill.description ?? "",
     cues: dbDrill.cues ?? [],
     tags: dbDrill.tags ?? dbDrill.focus_tags ?? [],
-    intensity: dbDrill.intensity ?? undefined,
-    level: dbDrill.level ?? undefined,
+    intensity: (dbDrill.intensity as Drill["intensity"]) ?? undefined,
+    level: (dbDrill.level as Drill["level"]) ?? undefined,
     minPlayers: dbDrill.min_players ?? undefined,
     maxPlayers: dbDrill.max_players ?? undefined,
     optimalGroupSize: dbDrill.optimal_group_size ?? undefined,
@@ -108,7 +109,7 @@ function dbDrillToDrill(dbDrill: DbDrill): Drill {
   };
 }
 
-function drillToDbDrill(drill: Omit<Drill, 'id'>, coachId: string): Omit<DbDrill, 'id' | 'created_at' | 'updated_at'> {
+function drillToDbDrill(drill: Omit<Drill, 'id'>, coachId: string): Record<string, unknown> {
     const positionsEmphasis = drill.positionsEmphasis
     ? Object.fromEntries(
         Object.entries(drill.positionsEmphasis).filter(
@@ -321,7 +322,7 @@ export const drillService = {
       if (updates.maxPlayers !== undefined) dbUpdates.max_players = updates.maxPlayers ?? null;
       if (updates.optimalGroupSize !== undefined) dbUpdates.optimal_group_size = updates.optimalGroupSize ?? null;
       if (updates.positionsEmphasis !== undefined) {
-        dbUpdates.positions_emphasis = (updates.positionsEmphasis as Record<string, number>) ?? null;
+        dbUpdates.positions_emphasis = (updates.positionsEmphasis as Json) ?? null;
       }
       if (updates.requiresFullCourt !== undefined) dbUpdates.requires_full_court = updates.requiresFullCourt ?? null;
       if (updates.mediaUrl !== undefined) dbUpdates.media_url = updates.mediaUrl ?? null;
@@ -439,7 +440,7 @@ export const drillService = {
       drillId: item.drill_id,
       duration: item.duration,
       notes: item.notes || undefined,
-      groups: item.groups as any,
+      groups: item.groups as unknown as PlanItem["groups"],
     }));
 
     return { plan, items: planItems };
@@ -449,7 +450,7 @@ export const drillService = {
     planId: string,
     updates: { name?: string; date?: Date; notes?: string; completed?: boolean }
   ): Promise<void> {
-    const dbUpdates: any = {};
+    const dbUpdates: Database["public"]["Tables"]["practice_plans"]["Update"] = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.date !== undefined) dbUpdates.date = updates.date.toISOString().split('T')[0];
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes;

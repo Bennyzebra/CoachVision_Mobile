@@ -1,599 +1,913 @@
-import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Camera,
+  Check,
+  ChevronDown,
+  CircleDot,
+  Clock3,
+  Plus,
+  Trash2,
+  Users,
+} from "lucide-react";
+
+import { useMobileBottomAction } from "@/components/MobileBottomActionContext";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { useTeam } from "@/contexts/TeamContext";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  CREATE_TEAM_STEP_COUNT,
+  addPracticePriority,
+  createInitialTeamDraft,
+  createPlayerDraft,
+  formatPlayerHeight,
+  getStepErrors,
+  isStepValid,
+  type CreateTeamDraft,
+  type CreateTeamStep,
+  type DraftErrors,
+  type PlayerDraft,
+} from "@/lib/createTeamDraft";
+import { cn } from "@/lib/utils";
+import { validateTeamLogoFile } from "./teamLogoUpload";
 
-const featureHighlights = [
-  {
-    title: "Practice plans in minutes",
-    description: "Auto-generate plans that align with your team's focus and skill level.",
-  },
-  {
-    title: "Modern drill library",
-    description: "Search, filter, and favorite the best drills for any session or focus area.",
-  },
-  {
-    title: "Smart feedback loops",
-    description: "Track what works, capture notes, and let CoachVision refine future plans.",
-  },
+const stepTitles = [
+  "Create your first team",
+  "Team profile",
+  "Practice environment",
+  "Build your roster",
+  "Review your team",
+] as const;
+
+const agePresets = [
+  { label: "Youth", detail: "8–12", min: "8", max: "12" },
+  { label: "Middle school", detail: "11–14", min: "11", max: "14" },
+  { label: "High school", detail: "14–18", min: "14", max: "18" },
+  { label: "Adult", detail: "18+", min: "18", max: "99" },
 ];
-type TourStep = {
-  target: string;
-  mobileTarget?: string;
-  title: string;
-  description: string;
-  tip?: string;
+
+const priorityOptions = [
+  "Fundamentals",
+  "Ball movement",
+  "Shooting",
+  "Offense",
+  "Defense",
+  "Rebounding",
+  "Conditioning",
+  "Team chemistry",
+];
+
+const equipmentOptions = [
+  "Basketballs",
+  "Cones",
+  "Pinnies",
+  "Agility ladders",
+  "Resistance bands",
+  "Pads",
+];
+
+const FieldError = ({ message }: { message?: string }) =>
+  message ? (
+    <p className="text-sm font-medium text-destructive" role="alert">
+      {message}
+    </p>
+  ) : null;
+
+const ChoicePill = ({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) => (
+  <button
+    type="button"
+    aria-pressed={selected}
+    onClick={onClick}
+    className={cn(
+      "tap-target inline-flex max-w-full items-center gap-2 rounded-full border px-4 py-2 text-left text-sm font-medium [overflow-wrap:anywhere] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      selected
+        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+        : "border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5"
+    )}
+  >
+    {selected && <Check className="h-4 w-4" aria-hidden="true" />}
+    {children}
+  </button>
+);
+
+type PlayerCardProps = {
+  player: PlayerDraft;
+  index: number;
+  errors: DraftErrors;
+  expanded: boolean;
+  onExpandedChange: (open: boolean) => void;
+  onChange: (updates: Partial<PlayerDraft>) => void;
+  onRemove: () => void;
 };
 
-const tourSteps: TourStep[] = [
-  {
-    target: "discover",
-    mobileTarget: "discover-mobile",
-    title: "Discover drills fast",
-    description: "Browse the full library, filter by focus area, and favorite the drills you plan to reuse.",
-    tip: "Use tags and favorites to build a personal shortlist before planning.",
-  },
-  {
-    target: "auto-plan",
-    mobileTarget: "auto-plan-mobile",
-    title: "Auto-Plan",
-    description: "Generate a full practice with constraints like time, theme, or skill focus in seconds.",
-    tip: "Start here on busy days—CoachVision will draft and you can edit before sharing.",
-  },
-  {
-    target: "plan",
-    mobileTarget: "plan-mobile",
-    title: "Build manually",
-    description: "Drag-and-drop drills into segments, add notes, and save templates for the season.",
-  },
-  {
-    target: "run",
-    mobileTarget: "run-mobile",
-    title: "Run practice",
-    description: "Present your plan with timers, instructions, and quick adjustments during sessions.",
-  },
-  {
-    target: "feedback",
-    mobileTarget: "feedback-mobile",
-    title: "Collect feedback",
-    description: "Log what worked, capture player notes, and let CoachVision adapt future plans.",
-    tip: "Adding a quick recap after practice trains the recommendations you see tomorrow.",
-  },
-];
+const PlayerCard = ({
+  player,
+  index,
+  errors,
+  expanded,
+  onExpandedChange,
+  onChange,
+  onRemove,
+}: PlayerCardProps) => {
+  const prefix = `players.${player.id}`;
+  const playerErrors = Object.entries(errors).filter(([key]) => key.startsWith(prefix));
+  const isOpen = expanded;
+  const [isEditingJerseyNumber, setIsEditingJerseyNumber] = useState(false);
+  const jerseyNumberInputRef = useRef<HTMLInputElement>(null);
+  const errorFor = (field: keyof PlayerDraft) => errors[`${prefix}.${field}`];
 
-const Onboarding = () => {
-  const [teamName, setTeamName] = useState("");
-  const [sport, setSport] = useState("Basketball");
-  const [organization, setOrganization] = useState("");
-    const [playerCount, setPlayerCount] = useState("");
-  const [skillLevel, setSkillLevel] = useState("Intermediate");
-  const [seasonFocus, setSeasonFocus] = useState("");
-  const [loading, setLoading] = useState(false);
-    const [step, setStep] = useState(0);
-    const [showTour, setShowTour] = useState(false);
-  const [tourStepIndex, setTourStepIndex] = useState(0);
-  const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
-  const [hasSeenTour, setHasSeenTour] = useState(false);
-  const [celebrating, setCelebrating] = useState(false);
-  const celebrationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const { refreshTeams } = useTeam();
-
-  const confettiPieces = useMemo(
-    () =>
-      Array.from({ length: 28 }, (_, index) => ({
-        left: Math.random() * 100,
-        delay: index * 50,
-        duration: 900 + Math.random() * 400,
-        color: ["#2563eb", "#f97316", "#22c55e", "#e11d48"][index % 4],
-        rotate: Math.random() * 360,
-      })),
-    []
-  );
-
-  useEffect(() => {
-    return () => {
-      if (celebrationTimeoutRef.current) {
-        clearTimeout(celebrationTimeoutRef.current);
-      }
-    };
-  }, []);
- 
-  const steps = useMemo(
-    () => [
-      {
-        title: "Welcome to CoachVision",
-        description:
-          "We’ll get you set up in under a minute. Thanks for trusting us to support your program!",
-      },
-      {
-        title: "See what's possible",
-        description: "A quick tour of the tools coaches use every day.",
-      },
-      {
-        title: "Your team details",
-        description: "Tell us about your program so plans feel like they were built for you.",
-      },
-      {
-        title: "Team stats",
-        description: "Add context so CoachVision can suggest the right drills and progressions.",
-      },
-      {
-        title: "All set!",
-        description: "We’re ready to roll. Let’s build your first plan together.",
-      },
-    ],
-    []
-  );
-  useEffect(() => {
-    if (step === 1 && !hasSeenTour) {
-      setShowTour(true);
-    }
-  }, [step, hasSeenTour]);
-
-  useEffect(() => {
-    if (!showTour) return;
-
-    const updateHighlight = () => {
-      const activeStep = tourSteps[tourStepIndex];
-      const target =
-        document.querySelector(`[data-tour-target="${activeStep.target}"]`) ||
-        document.querySelector(`[data-tour-target="${activeStep.mobileTarget}"]`);
-
-      if (target instanceof HTMLElement) {
-        const rect = target.getBoundingClientRect();
-        setHighlightRect(
-          new DOMRect(
-            rect.left + window.scrollX,
-            rect.top + window.scrollY,
-            rect.width,
-            rect.height
-          )
-        );
-      } else {
-        setHighlightRect(null);
-      }
-    };
-
-    updateHighlight();
-    window.addEventListener("resize", updateHighlight);
-    window.addEventListener("scroll", updateHighlight, true);
-    return () => {
-      window.removeEventListener("resize", updateHighlight);
-      window.removeEventListener("scroll", updateHighlight, true);
-    };
-  }, [showTour, tourStepIndex]);
-
-  const handleCreateTeam = async () => {
-    if (!user) return;
-
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.from("teams").insert({
-        coach_id: user.id,
-        team_name: teamName,
-        sport,
-        organization: organization || null,
-      });
-
-      if (error) throw error;
-
-      await refreshTeams();
-
-      toast({
-        title: "Team created!",
-        description: "Let's add your roster.",
-      });
-      setCelebrating(true);
-      celebrationTimeoutRef.current = setTimeout(() => navigate("/team"), 1400);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred.";
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+  const editJerseyNumber = () => {
+    setIsEditingJerseyNumber(true);
+    window.requestAnimationFrame(() => jerseyNumberInputRef.current?.focus());
   };
-
-   const handleNext = () => {
-    if (step < steps.length - 1) {
-      setStep((prev) => prev + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (step > 0) {
-      setStep((prev) => prev - 1);
-    }
-  };
-
-   const startTour = () => {
-    setTourStepIndex(0);
-    setShowTour(true);
-    setHasSeenTour(false);
-    if (step < 1) {
-      setStep(1);
-    }
-  };
-
-  const closeTour = () => {
-    setShowTour(false);
-    setHasSeenTour(true);
-  };
-
-  const handleTourNext = () => {
-    setTourStepIndex((prev) => Math.min(prev + 1, tourSteps.length - 1));
-  };
-
-  const handleTourBack = () => {
-    setTourStepIndex((prev) => Math.max(prev - 1, 0));
-  };
-
-  const highlightStyles: React.CSSProperties = highlightRect
-    ? {
-        width: highlightRect.width + 12,
-        height: highlightRect.height + 12,
-        top: highlightRect.top - 6,
-        left: highlightRect.left - 6,
-      }
-    : {
-        width: 320,
-        height: 90,
-        top: 140,
-        left: "50%",
-        transform: "translateX(-50%)",
-      };
-
-  const activeTourStep = tourSteps[tourStepIndex];
-
-  const calloutPosition: React.CSSProperties = highlightRect
-    ? {
-        top: highlightRect.top + highlightRect.height + 18,
-        left: highlightRect.left + highlightRect.width / 2,
-        transform: "translateX(-50%)",
-      }
-    : {
-        top: 250,
-        left: "50%",
-        transform: "translateX(-50%)",
-      };
-
-  const cursorStyle: React.CSSProperties = highlightRect
-    ? {
-        top: highlightRect.top + highlightRect.height / 2 - 8,
-        left: highlightRect.left + highlightRect.width - 12,
-      }
-    : { top: 180, left: "calc(50% + 80px)" };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4 overflow-hidden">
-      <Card className="w-full max-w-4xl shadow-xl">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <Badge variant="secondary">Step {step + 1} of {steps.length}</Badge>
-            <Progress value={((step + 1) / steps.length) * 100} className="h-2 flex-1" />
-          </div>
-          <CardTitle className="text-2xl mt-3">{steps[step].title}</CardTitle>
-          <CardDescription>{steps[step].description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {step === 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-              <div className="space-y-4">
-                <h3 className="text-xl font-semibold">Let's make you feel at home</h3>
-                <p className="text-muted-foreground">
-                  CoachVision is built for busy coaches. We'll guide you through creating your team, setting your goals,
-                  and show you where to find the tools that save you time.
-                </p>
-                <ul className="space-y-2 text-muted-foreground">
-                  <li>• Guided setup that takes less than a minute</li>
-                  <li>• Personalized practice plans informed by your roster</li>
-                  <li>• A tour of the features coaches love most</li>
-                </ul>
-              </div>
-              <div className="bg-muted/40 border rounded-lg p-4 space-y-3">
-                <h4 className="font-semibold">What you'll do:</h4>
-                <div className="flex flex-col gap-2">
-                  <div className="p-3 bg-background rounded border">Share your team basics</div>
-                  <div className="p-3 bg-background rounded border">Add quick context and goals</div>
-                  <div className="p-3 bg-background rounded border">Jump into practice planning</div>
+    <Collapsible open={isOpen} onOpenChange={onExpandedChange}>
+      <Card className={cn("overflow-hidden rounded-xl", playerErrors.length > 0 && "border-destructive/50")}>
+        <div className="flex min-h-16 items-center gap-3 px-4 py-3 sm:px-5">
+          {isEditingJerseyNumber ? (
+            <Input
+              ref={jerseyNumberInputRef}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={player.jerseyNumber}
+              placeholder={`${index + 1}`}
+              onChange={(event) => onChange({ jerseyNumber: event.target.value })}
+              onBlur={() => setIsEditingJerseyNumber(false)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === "Escape") {
+                  event.currentTarget.blur();
+                }
+              }}
+              className="h-9 w-9 min-w-0 max-w-9 shrink-0 rounded-full border-primary bg-primary px-0 text-center text-base font-semibold text-primary-foreground placeholder:text-primary-foreground/70 focus-visible:ring-primary"
+              aria-label={`Jersey number for ${player.name.trim() || `Player ${index + 1}`}`}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={editJerseyNumber}
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                player.jerseyNumber ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary hover:bg-primary/20"
+              )}
+              aria-label={`Edit jersey number for ${player.name.trim() || `Player ${index + 1}`}`}
+              title="Edit jersey number"
+            >
+              {player.jerseyNumber ? Number(player.jerseyNumber) : index + 1}
+            </button>
+          )}
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label={`${isOpen ? "Collapse" : "Expand"} Player ${index + 1}`}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-semibold">
+                  {player.name.trim() || `Player ${index + 1}`}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {[player.position, formatPlayerHeight(player)].filter(Boolean).join(" · ") || "Player details needed"}
+                </span>
+              </span>
+              <ChevronDown
+                className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")}
+                aria-hidden="true"
+              />
+            </button>
+          </CollapsibleTrigger>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive"
+            onClick={onRemove}
+            aria-label={`Remove ${player.name.trim() || `Player ${index + 1}`}`}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+
+        <CollapsibleContent className="player-card-collapsible border-t px-4 pb-5 pt-4 sm:px-5">
+          <div className="grid gap-4 md:grid-cols-12">
+            <div className="space-y-2 md:col-span-3" data-field-error={Boolean(errorFor("name")) || undefined}>
+              <Label htmlFor={`${player.id}-name`}>Player name <span className="text-destructive">*</span></Label>
+              <Input
+                id={`${player.id}-name`}
+                value={player.name}
+                maxLength={80}
+                placeholder="Player name"
+                onChange={(event) => onChange({ name: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                    onExpandedChange(false);
+                  }
+                }}
+                aria-invalid={Boolean(errorFor("name"))}
+              />
+              <FieldError message={errorFor("name")} />
+            </div>
+            <div className="space-y-2 md:col-span-2" data-field-error={Boolean(errorFor("jerseyNumber")) || undefined}>
+              <Label htmlFor={`${player.id}-jersey`}>Jersey #</Label>
+              <Input
+                id={`${player.id}-jersey`}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={99}
+                value={player.jerseyNumber}
+                placeholder="12"
+                onChange={(event) => onChange({ jerseyNumber: event.target.value })}
+                aria-invalid={Boolean(errorFor("jerseyNumber"))}
+              />
+              <FieldError message={errorFor("jerseyNumber")} />
+            </div>
+            <div className="space-y-2 md:col-span-3" data-field-error={Boolean(errorFor("position")) || undefined}>
+              <Label htmlFor={`${player.id}-position`}>Position <span className="text-destructive">*</span></Label>
+              <Select value={player.position} onValueChange={(position: PlayerDraft["position"]) => onChange({ position })}>
+                <SelectTrigger id={`${player.id}-position`} aria-invalid={Boolean(errorFor("position"))}>
+                  <SelectValue placeholder="Choose" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="G">Guard</SelectItem>
+                  <SelectItem value="F">Forward</SelectItem>
+                  <SelectItem value="C">Center</SelectItem>
+                </SelectContent>
+              </Select>
+              <FieldError message={errorFor("position")} />
+            </div>
+            <div className="space-y-2 md:col-span-4">
+              <Label>Height <span className="text-destructive">*</span></Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div data-field-error={Boolean(errorFor("heightFeet")) || undefined}>
+                  <div className="relative">
+                    <Input
+                      aria-label={`${player.name || `Player ${index + 1}`} height feet`}
+                      type="number"
+                      inputMode="numeric"
+                      min={3}
+                      max={8}
+                      value={player.heightFeet}
+                      placeholder="5"
+                      className="pr-9"
+                      onChange={(event) => onChange({ heightFeet: event.target.value })}
+                      aria-invalid={Boolean(errorFor("heightFeet"))}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">ft</span>
+                  </div>
+                  <FieldError message={errorFor("heightFeet")} />
                 </div>
-              </div>
-                           <div className="lg:col-span-2 bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div>
-                    <h4 className="font-semibold">See where everything lives</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Launch a guided overlay that points to each tab, blurs the app behind it, and explains what you can do.
-                    </p>
+                <div data-field-error={Boolean(errorFor("heightInches")) || undefined}>
+                  <div className="relative">
+                    <Input
+                      aria-label={`${player.name || `Player ${index + 1}`} height inches`}
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={11}
+                      value={player.heightInches}
+                      placeholder="8"
+                      className="pr-9"
+                      onChange={(event) => onChange({ heightInches: event.target.value })}
+                      aria-invalid={Boolean(errorFor("heightInches"))}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">in</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={startTour}>
-                      Start navigation guide
-                    </Button>
-                    <Button variant="ghost" onClick={() => setStep(1)}>
-                      Skip to feature tour
-                    </Button>
-                  </div>
+                  <FieldError message={errorFor("heightInches")} />
                 </div>
               </div>
             </div>
-           )}
+          </div>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+};
 
-          {step === 1 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {featureHighlights.map((feature) => (
-                <div key={feature.title} className="border rounded-lg p-4 bg-muted/30">
-                  <h3 className="font-semibold mb-2">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+const Onboarding = () => {
+  const [draft, setDraft] = useState<CreateTeamDraft>(() => createInitialTeamDraft());
+  const [step, setStep] = useState<CreateTeamStep>(0);
+  const [revealedSteps, setRevealedSteps] = useState<Set<CreateTeamStep>>(() => new Set());
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [customPriority, setCustomPriority] = useState("");
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => new Set());
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const { registerMobileBottomAction } = useMobileBottomAction();
+
+  const currentErrors = useMemo(() => getStepErrors(draft, step), [draft, step]);
+  const visibleErrors = revealedSteps.has(step) ? currentErrors : {};
+
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
+    };
+  }, [logoPreviewUrl]);
+
+  const revealCurrentStepErrors = useCallback(() => {
+    setRevealedSteps((current) => new Set(current).add(step));
+    if (step === 3) {
+      const errors = getStepErrors(draft, step);
+      setExpandedPlayers((current) => {
+        const next = new Set(current);
+        draft.players.forEach((player) => {
+          if (Object.keys(errors).some((key) => key.startsWith(`players.${player.id}.`))) next.add(player.id);
+        });
+        return next;
+      });
+    }
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-field-error='true'] input, [data-field-error='true'] textarea, [data-field-error='true'] button")?.focus();
+    });
+  }, [draft, step]);
+
+  const goBack = useCallback(() => {
+    setStep((current) => Math.max(0, current - 1) as CreateTeamStep);
+  }, []);
+
+  const goNext = useCallback(() => {
+    if (step === 4) return;
+    if (!isStepValid(draft, step)) {
+      revealCurrentStepErrors();
+      return;
+    }
+    setStep((current) => Math.min(4, current + 1) as CreateTeamStep);
+  }, [draft, revealCurrentStepErrors, step]);
+
+  useEffect(() => {
+    const nextLabel = step === 3 ? "Review" : step === 4 ? "Create Team" : "Continue";
+    return registerMobileBottomAction({
+      variant: "segmented",
+      active: true,
+      activeSegmentIndex: 1,
+      swipeEnabled: false,
+      progress: {
+        value: ((step + 1) / CREATE_TEAM_STEP_COUNT) * 100,
+        label: `Create team progress: step ${step + 1} of ${CREATE_TEAM_STEP_COUNT}`,
+      },
+      segments: [
+        {
+          id: "create-team-back",
+          label: "Back",
+          icon: <ArrowLeft className="h-4 w-4" aria-hidden="true" />,
+          disabled: step === 0,
+          onClick: goBack,
+        },
+        {
+          id: "create-team-next",
+          label: nextLabel,
+          icon: step < 4 ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />,
+          primary: true,
+          disabled: step === 4,
+          onClick: goNext,
+        },
+      ],
+    });
+  }, [goBack, goNext, registerMobileBottomAction, step]);
+
+  const setDraftFields = (updates: Partial<CreateTeamDraft>) => {
+    setDraft((current) => ({ ...current, ...updates }));
+  };
+
+  const toggleDraftArrayValue = (field: "practicePriorities" | "equipment", value: string) => {
+    setDraft((current) => {
+      const values = current[field];
+      return {
+        ...current,
+        [field]: values.includes(value) ? values.filter((item) => item !== value) : addPracticePriority(values, value),
+      };
+    });
+  };
+
+  const addCustomPriority = () => {
+    const matchingPreset = priorityOptions.find(
+      (priority) => priority.toLocaleLowerCase() === customPriority.trim().toLocaleLowerCase()
+    );
+    setDraft((current) => ({
+      ...current,
+      practicePriorities: addPracticePriority(current.practicePriorities, matchingPreset ?? customPriority),
+    }));
+    setCustomPriority("");
+  };
+
+  const updatePlayer = (playerId: string, updates: Partial<PlayerDraft>) => {
+    setDraft((current) => ({
+      ...current,
+      players: current.players.map((player) => (player.id === playerId ? { ...player, ...updates } : player)),
+    }));
+  };
+
+  const addPlayer = () => {
+    const player = createPlayerDraft();
+    setDraft((current) => ({ ...current, players: [...current.players, player] }));
+    setExpandedPlayers((current) => new Set(current).add(player.id));
+    window.requestAnimationFrame(() => document.getElementById(`${player.id}-name`)?.focus());
+  };
+
+  const removePlayer = (playerId: string) => {
+    setDraft((current) => ({
+      ...current,
+      players: current.players.filter((player) => player.id !== playerId),
+    }));
+    setExpandedPlayers((current) => {
+      const next = new Set(current);
+      next.delete(playerId);
+      return next;
+    });
+  };
+
+  const handleLogoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const validationError = validateTeamLogoFile(file);
+    if (validationError) {
+      setLogoError(validationError);
+      return;
+    }
+
+    setLogoError(null);
+    setDraftFields({ logoFile: file });
+    setLogoPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const removeLogo = () => {
+    setDraftFields({ logoFile: null });
+    setLogoPreviewUrl(null);
+    setLogoError(null);
+  };
+
+  const renderTeamIdentity = () => (
+    <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <div className="space-y-3">
+        <Label>Team photo <span className="font-normal text-muted-foreground">(optional)</span></Label>
+        <label className="group relative flex aspect-square w-full max-w-64 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted/35 transition hover:border-primary/50 hover:bg-primary/5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+          {logoPreviewUrl ? (
+            <img src={logoPreviewUrl} alt="Selected team preview" className="h-full w-full object-cover" />
+          ) : (
+            <span className="flex flex-col items-center gap-3 px-5 text-center text-muted-foreground">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Camera className="h-6 w-6" aria-hidden="true" />
+              </span>
+              <span className="text-sm font-medium text-foreground">Choose a team photo</span>
+              <span className="text-xs">PNG, JPG, or WebP · up to 5 MB</span>
+            </span>
+          )}
+          <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={handleLogoSelect} />
+        </label>
+        {logoPreviewUrl && (
+          <Button type="button" variant="ghost" className="h-11 w-full max-w-64 text-muted-foreground" onClick={removeLogo}>
+            Remove photo
+          </Button>
+        )}
+        <FieldError message={logoError ?? undefined} />
+      </div>
+
+      <div className="space-y-5">
+        <div className="space-y-2" data-field-error={Boolean(visibleErrors.teamName) || undefined}>
+          <Label htmlFor="team-name">Team name <span className="text-destructive">*</span></Label>
+          <Input
+            id="team-name"
+            value={draft.teamName}
+            maxLength={60}
+            autoComplete="organization"
+            placeholder="Northside Falcons"
+            className="h-12"
+            onChange={(event) => setDraftFields({ teamName: event.target.value })}
+            aria-invalid={Boolean(visibleErrors.teamName)}
+          />
+          <FieldError message={visibleErrors.teamName} />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Sport</Label>
+          <div className="flex min-h-12 items-center gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4">
+            <CircleDot className="h-5 w-5 text-primary" aria-hidden="true" />
+            <div className="flex-1">
+              <p className="font-medium">Basketball</p>
+              <p className="text-xs text-muted-foreground">The supported sport for this version</p>
+            </div>
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">Selected</span>
+          </div>
+        </div>
+
+        <div className="space-y-2" data-field-error={Boolean(visibleErrors.organization) || undefined}>
+          <Label htmlFor="organization">Organization <span className="font-normal text-muted-foreground">(optional)</span></Label>
+          <Input
+            id="organization"
+            value={draft.organization}
+            maxLength={80}
+            placeholder="School, club, or community program"
+            className="h-12"
+            onChange={(event) => setDraftFields({ organization: event.target.value })}
+            aria-invalid={Boolean(visibleErrors.organization)}
+          />
+          <FieldError message={visibleErrors.organization} />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTeamProfile = () => (
+    <div className="space-y-7">
+      <section className="space-y-4">
+        <div>
+          <h3 className="font-semibold">Player age range <span className="text-destructive">*</span></h3>
+          <p className="mt-1 text-sm text-muted-foreground">We’ll match drill complexity and teaching cues to this range.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {agePresets.map((preset) => {
+            const selected = draft.ageRangeMin === preset.min && draft.ageRangeMax === preset.max;
+            return (
+              <ChoicePill key={preset.label} selected={selected} onClick={() => setDraftFields({ ageRangeMin: preset.min, ageRangeMax: preset.max })}>
+                {preset.label} <span className={selected ? "text-primary-foreground/75" : "text-muted-foreground"}>{preset.detail}</span>
+              </ChoicePill>
+            );
+          })}
+        </div>
+        <div className="grid max-w-md grid-cols-[1fr_auto_1fr] items-end gap-3">
+          <div className="space-y-2" data-field-error={Boolean(visibleErrors.ageRangeMin) || undefined}>
+            <Label htmlFor="min-age">Minimum age</Label>
+            <Input
+              id="min-age"
+              type="number"
+              inputMode="numeric"
+              min={5}
+              max={99}
+              value={draft.ageRangeMin}
+              onChange={(event) => setDraftFields({ ageRangeMin: event.target.value })}
+              aria-invalid={Boolean(visibleErrors.ageRangeMin)}
+            />
+            <FieldError message={visibleErrors.ageRangeMin} />
+          </div>
+          <span className="pb-3 text-sm text-muted-foreground">to</span>
+          <div className="space-y-2" data-field-error={Boolean(visibleErrors.ageRangeMax) || undefined}>
+            <Label htmlFor="max-age">Maximum age</Label>
+            <Input
+              id="max-age"
+              type="number"
+              inputMode="numeric"
+              min={5}
+              max={99}
+              value={draft.ageRangeMax}
+              onChange={(event) => setDraftFields({ ageRangeMax: event.target.value })}
+              aria-invalid={Boolean(visibleErrors.ageRangeMax)}
+            />
+            <FieldError message={visibleErrors.ageRangeMax} />
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3" data-field-error={Boolean(visibleErrors.teamLevel) || undefined}>
+        <div>
+          <h3 className="font-semibold">Overall team level <span className="text-destructive">*</span></h3>
+          <p className="mt-1 text-sm text-muted-foreground">Choose the level that best represents most of the roster today.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {([
+            ["beginner", "Beginner", "Learning rules and core fundamentals"],
+            ["intermediate", "Intermediate", "Comfortable with team concepts"],
+            ["advanced", "Advanced", "Competitive pace and complex reads"],
+          ] as const).map(([value, label, description]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={draft.teamLevel === value}
+              onClick={() => setDraftFields({ teamLevel: value })}
+              className={cn(
+                "min-h-24 rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                draft.teamLevel === value ? "border-primary bg-primary/10 ring-1 ring-primary/20" : "bg-background hover:border-primary/40"
+              )}
+            >
+              <span className="flex items-center justify-between gap-2 font-semibold">
+                {label}
+                {draft.teamLevel === value && <Check className="h-4 w-4 text-primary" aria-hidden="true" />}
+              </span>
+              <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
+            </button>
+          ))}
+        </div>
+        <FieldError message={visibleErrors.teamLevel} />
+      </section>
+
+      <section className="space-y-3" data-field-error={Boolean(visibleErrors.practicePriorities) || undefined}>
+        <div>
+          <h3 className="font-semibold">Practice priorities <span className="text-destructive">*</span></h3>
+          <p className="mt-1 text-sm text-muted-foreground">Select every area you want future plans to reinforce.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {priorityOptions.map((priority) => (
+            <ChoicePill key={priority} selected={draft.practicePriorities.includes(priority)} onClick={() => toggleDraftArrayValue("practicePriorities", priority)}>
+              {priority}
+            </ChoicePill>
+          ))}
+          {draft.practicePriorities.filter((priority) => !priorityOptions.includes(priority)).map((priority) => (
+            <ChoicePill key={priority} selected onClick={() => toggleDraftArrayValue("practicePriorities", priority)}>
+              {priority}
+            </ChoicePill>
+          ))}
+        </div>
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+          <Input
+            aria-label="Write in a practice priority"
+            value={customPriority}
+            placeholder="Write in another priority"
+            onChange={(event) => setCustomPriority(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCustomPriority();
+              }
+            }}
+            className="min-w-0 flex-1"
+          />
+          <Button type="button" variant="outline" onClick={addCustomPriority} disabled={!customPriority.trim()}>
+            Add priority
+          </Button>
+        </div>
+        <FieldError message={visibleErrors.practicePriorities} />
+      </section>
+
+      <section className="space-y-2" data-field-error={Boolean(visibleErrors.coachingNotes) || undefined}>
+        <Label htmlFor="coaching-notes">Coaching notes <span className="text-destructive">*</span></Label>
+        <Textarea
+          id="coaching-notes"
+          value={draft.coachingNotes}
+          placeholder="What is this team working toward this season?"
+          onChange={(event) => setDraftFields({ coachingNotes: event.target.value })}
+          aria-invalid={Boolean(visibleErrors.coachingNotes)}
+        />
+        <FieldError message={visibleErrors.coachingNotes} />
+      </section>
+    </div>
+  );
+
+  const renderPracticeEnvironment = () => (
+    <div className="space-y-7">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2" data-field-error={Boolean(visibleErrors.practicesPerWeek) || undefined}>
+          <Label htmlFor="practices-per-week">Practices per week</Label>
+          <div className="relative">
+            <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              id="practices-per-week"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={7}
+              value={draft.practicesPerWeek}
+              placeholder="3"
+              className="h-12 pl-10"
+              onChange={(event) => setDraftFields({ practicesPerWeek: event.target.value })}
+              aria-invalid={Boolean(visibleErrors.practicesPerWeek)}
+            />
+          </div>
+          <FieldError message={visibleErrors.practicesPerWeek} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="practice-duration">Default practice duration</Label>
+          <Select value={draft.defaultPracticeDuration} onValueChange={(defaultPracticeDuration) => setDraftFields({ defaultPracticeDuration })}>
+            <SelectTrigger id="practice-duration" className="h-12"><SelectValue placeholder="Choose a duration" /></SelectTrigger>
+            <SelectContent>
+              {[45, 60, 75, 90, 120].map((minutes) => <SelectItem key={minutes} value={String(minutes)}>{minutes} minutes</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="court-availability">Court or space availability</Label>
+          <Select value={draft.courtAvailability} onValueChange={(courtAvailability) => setDraftFields({ courtAvailability })}>
+            <SelectTrigger id="court-availability" className="h-12"><SelectValue placeholder="Choose your usual setup" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="half-court">Half court</SelectItem>
+              <SelectItem value="full-court">Full court</SelectItem>
+              <SelectItem value="multiple-courts">Multiple courts</SelectItem>
+              <SelectItem value="outdoor">Outdoor or flexible space</SelectItem>
+              <SelectItem value="varies">Varies by practice</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="basket-count">Available baskets</Label>
+          <Select value={draft.basketCount} onValueChange={(basketCount) => setDraftFields({ basketCount })}>
+            <SelectTrigger id="basket-count" className="h-12"><SelectValue placeholder="Choose a number" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">1 basket</SelectItem>
+              <SelectItem value="2">2 baskets</SelectItem>
+              <SelectItem value="3">3 baskets</SelectItem>
+              <SelectItem value="4+">4 or more baskets</SelectItem>
+              <SelectItem value="varies">Varies</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="font-semibold">Available equipment</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Select anything your team can use regularly.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {equipmentOptions.map((equipment) => (
+            <ChoicePill key={equipment} selected={draft.equipment.includes(equipment)} onClick={() => toggleDraftArrayValue("equipment", equipment)}>
+              {equipment}
+            </ChoicePill>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderRoster = () => (
+    <div className="space-y-4">
+      {draft.players.length === 0 ? (
+        <Button type="button" variant="outline" className="h-11 gap-2" onClick={addPlayer}>
+          <Plus className="h-4 w-4" aria-hidden="true" /> Add player
+        </Button>
+      ) : (
+        <p className="text-sm text-muted-foreground">Name, position, and height are required. Jersey number is optional.</p>
+      )}
+      <div data-field-error={Boolean(visibleErrors.players) || undefined}>
+        <FieldError message={visibleErrors.players} />
+      </div>
+      <div className="space-y-3">
+        {draft.players.map((player, index) => (
+          <PlayerCard
+            key={player.id}
+            player={player}
+            index={index}
+            errors={visibleErrors}
+            expanded={expandedPlayers.has(player.id)}
+            onExpandedChange={(open) => {
+              setExpandedPlayers((current) => {
+                const next = new Set(current);
+                if (open) next.add(player.id);
+                else next.delete(player.id);
+                return next;
+              });
+            }}
+            onChange={(updates) => updatePlayer(player.id, updates)}
+            onRemove={() => removePlayer(player.id)}
+          />
+        ))}
+      </div>
+      {draft.players.length > 0 && (
+        <Button type="button" variant="outline" className="h-11 w-full border-dashed" onClick={addPlayer}>
+          <Plus className="h-4 w-4" aria-hidden="true" /> Add another player
+        </Button>
+      )}
+    </div>
+  );
+
+  const renderReview = () => {
+    const environmentItems = [
+      draft.practicesPerWeek ? `${draft.practicesPerWeek} practices per week` : null,
+      draft.defaultPracticeDuration ? `Default practice duration: ${draft.defaultPracticeDuration} minutes` : null,
+      draft.courtAvailability ? draft.courtAvailability.replace(/-/g, " ") : null,
+      draft.basketCount ? `${draft.basketCount} ${draft.basketCount === "1" ? "basket" : "baskets"}` : null,
+    ].filter((item): item is string => Boolean(item));
+
+    return (
+      <div className="space-y-5">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="rounded-xl">
+            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 p-5">
+              <div><CardTitle className="text-lg">Team</CardTitle><CardDescription>Identity and planning profile</CardDescription></div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setStep(0)}>Edit</Button>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5 pt-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary">
+                  {logoPreviewUrl ? <img src={logoPreviewUrl} alt="" className="h-full w-full object-cover" /> : <Users className="h-6 w-6" aria-hidden="true" />}
+                </div>
+                <div className="min-w-0"><p className="truncate text-lg font-semibold">{draft.teamName.trim()}</p><p className="text-sm text-muted-foreground">Basketball · {draft.organization.trim() || "Independent"}</p></div>
+              </div>
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg bg-muted/50 p-3"><dt className="text-muted-foreground">Age range</dt><dd className="mt-1 font-medium">{draft.ageRangeMin}–{draft.ageRangeMax}</dd></div>
+                <div className="rounded-lg bg-muted/50 p-3"><dt className="text-muted-foreground">Team level</dt><dd className="mt-1 font-medium capitalize">{draft.teamLevel}</dd></div>
+              </dl>
+              {draft.practicePriorities.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium">Practice priorities</p>
+                  <div className="flex flex-wrap gap-2">
+                    {draft.practicePriorities.map((priority) => <span key={priority} className="max-w-full break-words rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{priority}</span>)}
+                  </div>
+                </div>
+              )}
+              <div>
+                <p className="mb-1 text-sm font-medium">Coaching notes</p>
+                <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{draft.coachingNotes.trim()}</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>Edit team profile</Button>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-xl">
+            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 p-5">
+              <div><CardTitle className="text-lg">Practice setup</CardTitle><CardDescription>Typical environment and equipment</CardDescription></div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setStep(2)}>Edit</Button>
+            </CardHeader>
+            <CardContent className="space-y-3 p-5 pt-0">
+              {environmentItems.length > 0 ? (
+                <ul className="space-y-2 text-sm">
+                  {environmentItems.map((item) => <li key={item} className="flex items-center gap-2 capitalize"><Check className="h-4 w-4 text-primary" aria-hidden="true" />{item}</li>)}
+                </ul>
+              ) : <p className="text-sm text-muted-foreground">No practice defaults added yet.</p>}
+              {draft.equipment.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {draft.equipment.map((equipment) => <span key={equipment} className="rounded-full border px-3 py-1 text-xs">{equipment}</span>)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="rounded-xl">
+          <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 p-5">
+            <div><CardTitle className="text-lg">Roster</CardTitle><CardDescription>{draft.players.length} players ready to personalize practice plans</CardDescription></div>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setStep(3)}>Edit</Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {draft.players.map((player) => (
+                <div key={player.id} className="grid gap-2 px-5 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-4">
+                  <div className="min-w-0"><p className="truncate font-medium">{player.name.trim()}</p><p className="text-xs text-muted-foreground">{player.jerseyNumber ? `#${Number(player.jerseyNumber)}` : "No jersey number"}</p></div>
+                  <span className="w-fit rounded-full bg-muted px-2.5 py-1 font-medium">{player.position}</span>
+                  <span className="text-muted-foreground">{formatPlayerHeight(player)}</span>
                 </div>
               ))}
-              <div className="md:col-span-3 border rounded-lg p-4 bg-background">
-                <h4 className="font-semibold mb-2">Pro tip</h4>
-                <p className="text-muted-foreground text-sm">
-                  You can revisit this tour anytime from Settings → Onboarding. For now, let's capture your team info so
-                  CoachVision can tailor drills, progressions, and reminders to your roster.
-                </p>
-                                <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Prefer a guided walkthrough? The overlay tour will blur the background and highlight the tab being
-                    explained.
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={startTour}>
-                      Relaunch overlay
-                    </Button>
-                    <Badge variant="secondary">{tourStepIndex + 1} / {tourSteps.length} tabs</Badge>
-                  </div>
-                </div>
-              </div>
             </div>
-           )}
+          </CardContent>
+        </Card>
 
-          {step === 2 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="teamName">Team Name</Label>
-                <Input
-                  id="teamName"
-                  type="text"
-                  placeholder="Warriors"
-                  value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sport">Sport</Label>
-                <Select value={sport} onValueChange={setSport}>
-                  <SelectTrigger id="sport">
-                    <SelectValue placeholder="Select a sport" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Basketball">Basketball</SelectItem>
-                    <SelectItem value="Football">Football</SelectItem>
-                    <SelectItem value="Soccer">Soccer</SelectItem>
-                    <SelectItem value="Volleyball">Volleyball</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2 space-y-2">
-                <Label htmlFor="organization">Organization (Optional)</Label>
-                <Input
-                  id="organization"
-                  type="text"
-                  placeholder="Lincoln High School"
-                  value={organization}
-                  onChange={(e) => setOrganization(e.target.value)}
-                />
-              </div>
-            </div>
-         )}
-
-          {step === 3 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="playerCount">Players</Label>
-                <Input
-                  id="playerCount"
-                  type="number"
-                  min={1}
-                  placeholder="12"
-                  value={playerCount}
-                  onChange={(e) => setPlayerCount(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="skillLevel">Skill level</Label>
-                <Select value={skillLevel} onValueChange={setSkillLevel}>
-                  <SelectTrigger id="skillLevel">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Developmental">Developmental</SelectItem>
-                    <SelectItem value="Intermediate">Intermediate</SelectItem>
-                    <SelectItem value="Competitive">Competitive</SelectItem>
-                    <SelectItem value="Elite">Elite</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="seasonFocus">Season focus</Label>
-                <Input
-                  id="seasonFocus"
-                  type="text"
-                  placeholder="E.g. Ball movement, defensive pressure"
-                  value={seasonFocus}
-                  onChange={(e) => setSeasonFocus(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-3 bg-muted/30 border rounded-lg p-4 text-sm text-muted-foreground">
-                These details help us surface the right drills, schedule ideas, and reminders. You can update them
-                anytime from Team settings.
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-              <div className="space-y-3">
-                <h3 className="text-xl font-semibold">Thanks for choosing CoachVision</h3>
-                <p className="text-muted-foreground">
-                  You're ready to start planning. We'll use your team info to tailor drill suggestions, progressions,
-                  and reminders for your roster size and level.
-                </p>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">Next</Badge>
-                    <span>Build your first practice plan from the library or Auto Plan.</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">Tip</Badge>
-                    <span>Invite assistants and track feedback after each session.</span>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-muted/40 border rounded-lg p-4 space-y-3">
-                <h4 className="font-semibold">Your onboarding notes</h4>
-                <div className="p-3 bg-background rounded border">
-                  <div className="text-xs uppercase text-muted-foreground">Team</div>
-                  <div className="font-semibold">{teamName || "Team name pending"}</div>
-                  <div className="text-sm text-muted-foreground">{sport} · {organization || "Independent"}</div>
-                </div>
-                <div className="p-3 bg-background rounded border text-sm text-muted-foreground space-y-1">
-                  <div><span className="font-medium text-foreground">Players:</span> {playerCount || "Add later"}</div>
-                  <div><span className="font-medium text-foreground">Level:</span> {skillLevel}</div>
-                  <div><span className="font-medium text-foreground">Focus:</span> {seasonFocus || "We'll help you decide"}</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-                <div className="flex items-center justify-between px-6 pb-6">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {step > 0 && <Button variant="ghost" onClick={handleBack}>Back</Button>}
-            {step < steps.length - 1 && (
-              <Button variant="outline" onClick={handleNext} disabled={step === 2 && !teamName}>
-                Continue
-              </Button>
-            )}
-          </div>
-          {step === steps.length - 1 ? (
-            <Button onClick={handleCreateTeam} disabled={!teamName || loading}>
-              {loading ? "Saving..." : "Finish setup"}
-            </Button>
-          ) : step >= 2 ? (
-            <Button onClick={handleNext} disabled={step === 2 && !teamName}>
-              Save & continue
-            </Button>
-          ) : (
-            <Button onClick={handleNext}>Next</Button>
-          )}
+        <div className="rounded-xl border border-secondary/35 bg-secondary/10 p-4 text-sm">
+          <p className="font-semibold text-foreground">The UX is ready for the backend connection.</p>
+          <p className="mt-1 text-muted-foreground">Create Team is intentionally disabled in this phase. This draft stays in memory while you review and edit it, and no account data is being written yet.</p>
         </div>
-      </Card>
-           {celebrating && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-gradient-to-br from-background/60 via-background/70 to-background/60">
-          <div className="relative w-full h-full overflow-hidden">
-            {confettiPieces.map((piece, index) => (
-              <div
-                key={index}
-                className="absolute w-2 h-4 rounded-sm"
-                style={{
-                  left: `${piece.left}%`,
-                  top: "-12px",
-                  backgroundColor: piece.color,
-                  transform: `rotate(${piece.rotate}deg)`,
-                  animation: `confetti-fall ${piece.duration}ms ease-out forwards`,
-                  animationDelay: `${piece.delay}ms`,
-                }}
-              />
-            ))}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-background/90 border shadow-lg rounded-xl px-6 py-4 text-center animate-in fade-in zoom-in duration-300">
-                <p className="text-sm text-muted-foreground">Welcome aboard</p>
-                <p className="text-2xl font-semibold">Team created!</p>
-              </div>
-            </div>
-            <style>{`
-              @keyframes confetti-fall {
-                0% { transform: translate3d(0, -30px, 0) rotate(0deg); opacity: 1; }
-                100% { transform: translate3d(0, 240px, 0) rotate(360deg); opacity: 0; }
-              }
-            `}</style>
-          </div>
-        </div>
-      )}
-            {showTour && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-md transition-all" />
-          <div className="absolute inset-0 pointer-events-none">
-            <div
-              className="absolute rounded-xl border-2 border-primary/80 bg-primary/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] transition-all"
-              style={highlightStyles}
-            />
-            <div
-              className="absolute w-4 h-4 rounded-full bg-primary shadow-lg animate-pulse"
-              style={cursorStyle}
-            >
-              <div className="absolute inset-[-8px] rounded-full border border-primary/50 animate-ping" />
-            </div>
-          </div>
+      </div>
+    );
+  };
 
-          <div className="absolute" style={calloutPosition}>
-            <div className="pointer-events-auto max-w-md rounded-lg border bg-card shadow-xl p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h4 className="text-lg font-semibold flex items-center gap-2">
-                    {activeTourStep.title}
-                    <Badge variant="secondary">Tab {tourStepIndex + 1} of {tourSteps.length}</Badge>
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">{activeTourStep.description}</p>
-                  {activeTourStep.tip && (
-                    <p className="text-xs text-muted-foreground mt-2 bg-muted/60 p-2 rounded">
-                      {activeTourStep.tip}
-                    </p>
-                  )}
-                </div>
-                <Button variant="ghost" size="icon" onClick={closeTour} className="shrink-0">
-                  ✕
-                </Button>
-              </div>
-            </div>
-          </div>
+  const renderStep = () => {
+    if (step === 0) return renderTeamIdentity();
+    if (step === 1) return renderTeamProfile();
+    if (step === 2) return renderPracticeEnvironment();
+    if (step === 3) return renderRoster();
+    return renderReview();
+  };
 
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-auto">
-            <Badge variant="outline" className="hidden md:inline-flex bg-background/80 backdrop-blur-sm">
-              The background is blurred so you can focus on the highlighted tab
-            </Badge>
-            <Button variant="ghost" onClick={handleTourBack} disabled={tourStepIndex === 0}>
-              Back
-            </Button>
-            <Button variant="outline" onClick={closeTour}>
-              Skip overlay
-            </Button>
-            <Button onClick={tourStepIndex === tourSteps.length - 1 ? closeTour : handleTourNext}>
-              {tourStepIndex === tourSteps.length - 1 ? "Finish tour" : "Next tab"}
-            </Button>
-          </div>
+  const nextLabel = step === 3 ? "Review team" : step === 4 ? "Create Team" : "Continue";
+
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-5 pb-4 sm:space-y-6">
+      <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4 shadow-sm sm:p-6">
+        <div className="flex items-baseline justify-between gap-4">
+          <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight outline-none sm:text-3xl">
+            {stepTitles[step]}
+          </h1>
+          <p className="shrink-0 text-sm font-medium text-muted-foreground">
+            Step {step + 1} of {CREATE_TEAM_STEP_COUNT}
+          </p>
         </div>
-      )}
+      </div>
+
+      <Card className="rounded-2xl shadow-sm"><CardContent className="p-4 sm:p-6 lg:p-8">{renderStep()}</CardContent></Card>
+
+      <div className="hidden items-center justify-between rounded-xl border bg-background p-3 shadow-sm md:flex">
+        <Button type="button" variant="ghost" className="h-11 gap-2" disabled={step === 0} onClick={goBack}>
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
+        </Button>
+        <div className="text-center">{step === 4 && <p className="text-xs text-muted-foreground">Backend connection comes next</p>}</div>
+        <Button type="button" className="h-11 min-w-36 gap-2" disabled={step === 4} onClick={goNext}>
+          {nextLabel}
+          {step < 4 ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
+        </Button>
+      </div>
+
+      <p className="text-center text-xs text-muted-foreground md:hidden">
+        {step === 4 ? "Backend connection comes next" : "Use Back and Continue below to move through setup."}
+      </p>
     </div>
   );
 };

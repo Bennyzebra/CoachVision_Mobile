@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { TeamProvider } from "@/contexts/TeamContext";
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { TeamSetupGate } from "@/components/TeamSetupGate";
 import { isSupabaseConfigured } from "@/integrations/supabase/client";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
@@ -36,8 +37,9 @@ const AppRoutes = () => (
       path="/*"
       element={
         <ProtectedRoute>
-          <Layout>
-            <Routes>
+          <TeamSetupGate>
+            <Layout>
+              <Routes>
               <Route path="/" element={<AutoPlan />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/auto-plan" element={<Navigate to="/" replace />} />
@@ -58,8 +60,9 @@ const AppRoutes = () => (
               <Route path="/drill/:id" element={<DrillDetail />} />
               <Route path="/upgrade" element={<UpgradePage />} />
               <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Layout>
+              </Routes>
+            </Layout>
+          </TeamSetupGate>
         </ProtectedRoute>
       }
     />   
@@ -85,7 +88,12 @@ const App = () => (
             </div>
           </div>
         ) : (
-          <BrowserRouter>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <AuthProvider>
               <TeamProvider>
                 <AppRoutes />

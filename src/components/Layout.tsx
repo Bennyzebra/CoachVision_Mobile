@@ -64,7 +64,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentTeam } = useTeam();
-  const { profile, session, signOut } = useAuth();
+  const { profile, session, user, signOut } = useAuth();
   const { theme = "system", setTheme } = useTheme();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -81,7 +81,10 @@ export const Layout = ({ children }: LayoutProps) => {
     useState<MobileBottomActionRegistration | null>(null);
   const [isThemeSelectOpen, setIsThemeSelectOpen] = useState(false);  
   const [isProfileDropdownHovered, setIsProfileDropdownHovered] = useState(false);  
-  const userEmail = profile?.email ?? session?.user?.email ?? "Email not available";
+  const isFirstTeamSetup = location.pathname === "/onboarding";
+  // The authentication provider owns the account email. Profile records can
+  // lag behind after an email change, so never let them override it here.
+  const userEmail = user?.email ?? session?.user?.email ?? profile?.email ?? "Email not available";
   const coachFullName = (profile?.coach_name || "Coach").trim();
   const [firstName = "Coach", ...lastNameParts] = coachFullName.split(/\s+/).filter(Boolean);
   const lastName = lastNameParts.join(" ");
@@ -113,6 +116,10 @@ export const Layout = ({ children }: LayoutProps) => {
   }, []);
 
   useEffect(() => {
+    if (isFirstTeamSetup) setMobileHeaderOffset(0, false);
+  }, [isFirstTeamSetup, setMobileHeaderOffset]);
+
+  useEffect(() => {
     const handleTouchMove = (event: TouchEvent) => {
       const nextY = event.touches[0]?.clientY;
       if (typeof nextY !== "number") return;
@@ -129,6 +136,10 @@ export const Layout = ({ children }: LayoutProps) => {
 
     const handleScroll = () => {
       const currentY = window.scrollY;
+      if (isFirstTeamSetup) {
+        lastScrollYRef.current = currentY;
+        return;
+      }
       const delta = currentY - lastScrollYRef.current;
       const force = Math.abs(delta) + Math.abs(touchVelocityRef.current);
       const headerHeight = mobileHeaderRef.current?.getBoundingClientRect().height ?? 0;
@@ -171,7 +182,7 @@ export const Layout = ({ children }: LayoutProps) => {
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [location.pathname, setMobileHeaderOffset]);
+  }, [isFirstTeamSetup, location.pathname, setMobileHeaderOffset]);
 
   useEffect(() => {
     const handleRouteMotion = (event: Event) => {
@@ -391,48 +402,54 @@ export const Layout = ({ children }: LayoutProps) => {
   const accountMenuContent = (
     <div className="space-y-1">
       <div className="px-3 py-2 text-left">
-        <p className="text-sm font-semibold text-foreground break-words">
-          {coachDisplayName}
-        </p>
+        {!isFirstTeamSetup && (
+          <p className="text-sm font-semibold text-foreground break-words">
+            {coachDisplayName}
+          </p>
+        )}
         <p className="text-sm text-muted-foreground break-words">{userEmail}</p>
       </div>
       <Separator />
-      <div className="px-3 py-1.5" onClick={handleThemeSectionClick}>
-        <p className="mb-2 text-sm font-medium">Theme</p>
-        <Select
-          open={isThemeSelectOpen}
-          value={theme}
-          onValueChange={handleThemeValueChange}
-          onOpenChange={handleThemeSelectOpenChange}
-        >
-          <SelectTrigger ref={themeTriggerRef} data-theme-trigger className="h-11 md:h-9">
-            <SelectValue placeholder="Select theme" />
-          </SelectTrigger>
-          <SelectContent data-profile-theme-select-content>
-            <SelectItem value="system">System</SelectItem>
-            <SelectItem value="light">Light</SelectItem>
-            <SelectItem value="dark">Dark</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Separator />
-      <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/team")}>
-        <Users className="mr-3 h-5 w-5 md:h-4 md:w-4" />
-        Team & Roster
-      </Button>
-      <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/settings")}>
-        <Settings className="mr-3 h-5 w-5 md:h-4 md:w-4" />
-        Settings
-      </Button>
-      <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/practice-tracker")}>
-        <ClipboardList className="mr-3 h-5 w-5 md:h-4 md:w-4" />
-        Practice History
-      </Button>
-      <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/submit")}>
-        <Send className="mr-3 h-5 w-5 md:h-4 md:w-4" />
-        Submit Drill
-      </Button>
-      <Separator />
+      {!isFirstTeamSetup && (
+        <>
+          <div className="px-3 py-1.5" onClick={handleThemeSectionClick}>
+            <p className="mb-2 text-sm font-medium">Theme</p>
+            <Select
+              open={isThemeSelectOpen}
+              value={theme}
+              onValueChange={handleThemeValueChange}
+              onOpenChange={handleThemeSelectOpenChange}
+            >
+              <SelectTrigger ref={themeTriggerRef} data-theme-trigger className="h-11 md:h-9">
+                <SelectValue placeholder="Select theme" />
+              </SelectTrigger>
+              <SelectContent data-profile-theme-select-content>
+                <SelectItem value="system">System</SelectItem>
+                <SelectItem value="light">Light</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Separator />
+          <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/team")}>
+            <Users className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+            Team & Roster
+          </Button>
+          <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/settings")}>
+            <Settings className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+            Settings
+          </Button>
+          <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/practice-tracker")}>
+            <ClipboardList className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+            Practice History
+          </Button>
+          <Button variant="ghost" className="h-12 w-full justify-start md:h-10" onClick={() => handleNavigate("/submit")}>
+            <Send className="mr-3 h-5 w-5 md:h-4 md:w-4" />
+            Submit Drill
+          </Button>
+          <Separator />
+        </>
+      )}
       <Button
         variant="ghost"
         className="h-12 w-full justify-start text-destructive md:h-10"
@@ -533,9 +550,9 @@ export const Layout = ({ children }: LayoutProps) => {
           className={cn(
             "fixed inset-x-0 top-0 z-40 border-b border-border/80 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden",
             "will-change-transform",
-            isMobileHeaderTransitioning && "transition-transform duration-300 ease-out"
+            !isFirstTeamSetup && isMobileHeaderTransitioning && "transition-transform duration-300 ease-out"
           )}
-          style={{ transform: `translate3d(0, -${mobileHeaderOffsetPx}px, 0)` }}
+          style={{ transform: `translate3d(0, -${isFirstTeamSetup ? 0 : mobileHeaderOffsetPx}px, 0)` }}
         >
           <div className="px-4 pt-[var(--mobile-header-top-padding)]">
             <div className="flex h-14 -translate-y-[var(--mobile-header-content-lift)] items-center justify-between gap-3">
@@ -570,10 +587,12 @@ export const Layout = ({ children }: LayoutProps) => {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right" className="w-[86vw] max-w-sm !pt-[calc(var(--app-safe-area-top)+1.5rem)] [&>button]:top-[calc(var(--app-safe-area-top)+1rem)]">
-                  <SheetHeader className="text-left">
-                    <SheetTitle>Account</SheetTitle>
-                  </SheetHeader>
-                  <div className="mt-4">
+                  {!isFirstTeamSetup && (
+                    <SheetHeader className="text-left">
+                      <SheetTitle>Account</SheetTitle>
+                    </SheetHeader>
+                  )}
+                  <div className={cn(!isFirstTeamSetup && "mt-4")}>
                     {accountMenuContent}
                   </div>
                 </SheetContent>

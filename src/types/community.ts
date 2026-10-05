@@ -2,18 +2,20 @@ export type AppRole = "coach" | "org_admin" | "platform_admin";
 
 export interface CoachProfile {
   id: string;
-  user_id: string;
-  display_name: string;
+  user_id?: string;
+  display_name?: string;
   org?: string;
-  sports: string[];
+  sports?: string[];
   location?: string;
   bio?: string;
-  years_experience: number;
-  badges: string[];
-  is_public: boolean;
+  years_experience?: number;
+  coach_name?: string | null;
+  organization?: string | null;
+  badges?: string[];
+  is_public?: boolean;
   avatar_url?: string;
-  followers_count: number;
-  following_count: number;
+  followers_count?: number;
+  following_count?: number;
   created_at: string;
   updated_at: string;
 }

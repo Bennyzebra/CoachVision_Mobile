@@ -51,13 +51,13 @@ export default function CoachProfile() {
       setProfile({
         ...profileData,
         display_name: profileData.coach_name ?? "Coach",
-        org: (profileData as any).organization ?? (profileData as any).org,
-        followers_count: profileData.followers_count ?? 0,
-        following_count: profileData.following_count ?? 0,
-        badges: profileData.badges ?? [],
-        sports: profileData.sports ?? [],
-        years_experience: profileData.years_experience ?? 0,
-      } as CoachProfileType);
+        org: profileData.organization ?? undefined,
+        followers_count: 0,
+        following_count: 0,
+        badges: [],
+        sports: [],
+        years_experience: 0,
+      } as unknown as CoachProfileType);
 
       if (user?.id && userId !== user.id) {
         const { data: followData } = await supabase
@@ -79,8 +79,8 @@ export default function CoachProfile() {
         .in("visibility", user?.id === userId ? ["public", "followers", "private"] : ["public"])
         .order("created_at", { ascending: false });
 
-      setItems((itemsData as any) || []);
-    } catch (error: any) {
+      setItems((itemsData as unknown as SharedItem[]) || []);
+    } catch (error) {
       toast.error("Failed to load profile");
       console.error(error);
     } finally {
