@@ -8,7 +8,7 @@ A mobile-focused basketball coaching app for planning practices, finding drills,
 
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.18-339933?style=flat-square)](package.json)
 
-CoachVision uses team profiles, a drill library, AI-assisted practice planning, and a planning engine that learns overtime to create better practices faster. This repository contains the React web application, its Capacitor iOS project, and Supabase database migrations and Edge Function code.
+CoachVision uses team profiles, a drill library, AI-assisted practice generation, and a planning engine that learns overtime to create better practices faster. This repository contains the application, its Capacitor iOS project, and Supabase database migrations and Edge Function code.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ CoachVision uses team profiles, a drill library, AI-assisted practice planning, 
 
 ## Background
 
-CoachVision helps basketball coaches prepare and run practices with their team's needs in mind.
+CoachVision makes it easier for basketball coaches to plan and run practices with their team's needs in mind.
 
 - **Team setup:** Manage team information, player rosters, and team profiles.
 - **Drill library:** Browse, search, and filter drills for a practice.
