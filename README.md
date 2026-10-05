@@ -63,11 +63,14 @@ npm run verify
 npm run verify:db
 ```
 
-Gemini requests are handled by the `gemini` Supabase Edge Function so the API key is not exposed in the browser bundle. Configure Gemini as a Supabase secret instead of a `VITE_` variable:
+Gemini requests are handled by the `gemini` Supabase Edge Function so the API key is not exposed in the browser bundle. Configure Gemini as a Supabase secret instead of a `VITE_` variable. The function accepts `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` for its Supabase client:
 
 ```sh
-set GEMINI_API_KEY=...
+supabase secrets set GEMINI_API_KEY=...
 ```
+
+The database seeding scripts read Supabase client settings from `.env` or the environment,
+using `VITE_SUPABASE_URL` / `SUPABASE_URL` and a publishable or anon key.
 
 Optional: override the default model with `GEMINI_MODEL` if you need to try a different Gemini variant.
 Use the actual model id, not the display name. Good examples are `gemini-2.5-flash-lite` and `gemini-3-flash-preview`.
