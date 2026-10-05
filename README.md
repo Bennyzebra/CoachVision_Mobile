@@ -189,24 +189,3 @@ See [`src/services/geminiFunctionClient.ts`](src/services/geminiFunctionClient.t
 Only browser-safe Supabase client values belong in `VITE_` variables. Keep Gemini keys, Supabase service-role keys, and other private credentials out of frontend code, screenshots, commits, and issue reports. Store server-side credentials in Supabase secrets.
 
 Before reporting an issue, remove credentials and identifying team or player data. For a vulnerability report, contact the maintainer through a private channel if available; avoid disclosing sensitive exploit details in a public issue.
-
-## Maintainers
-
-Repository owner: [@Bennyzebra](https://github.com/Bennyzebra).
-
-## Contributing
-
-Use [GitHub issues](https://github.com/Bennyzebra/CoachVision_Mobile/issues) for reproducible bugs and feature proposals. Include the affected screen, steps to reproduce, expected behavior, and relevant browser or device details.
-
-For proposed code changes:
-
-1. Keep the change focused and explain its purpose.
-2. Run `npm run verify` and report the result.
-3. Check affected interactions in a browser and, when applicable, on iOS.
-4. Include screenshots for UI changes with private information removed.
-
-Keep documentation consistent with the actual commands and configuration. This README's organization is inspired by [Standard Readme](https://github.com/RichardLitt/standard-readme).
-
-## License
-
-No project license file is currently included in this repository. An open-source license has not been specified; contact the repository owner about permission to reuse or redistribute the project. Add an owner-approved `LICENSE` file before advertising it as open source or displaying a license badge.
