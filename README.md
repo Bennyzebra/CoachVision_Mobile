@@ -153,6 +153,8 @@ The suite includes unit tests and source-structure checks. Source checks do not 
 
 Database seeding scripts read client settings from `.env` or the environment, using `VITE_SUPABASE_URL` / `SUPABASE_URL` and a publishable or anon key. Review the target database and each script before running a seed operation.
 
+The canonical 200-drill catalog is [`drills_complete.json`](drills_complete.json). [`scripts/generate-supabase-drill-seed.mjs`](scripts/generate-supabase-drill-seed.mjs) generates the catalog migration and standalone restore SQL from it. Legacy import batches and scripts are available in Git history.
+
 ## Project Structure
 
 ```text
