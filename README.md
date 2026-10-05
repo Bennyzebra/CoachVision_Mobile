@@ -6,8 +6,6 @@
 
 A mobile-focused basketball coaching app for planning practices, finding drills, and tracking team progress.
 
-[![GitHub created at](https://img.shields.io/github/created-at/Bennyzebra/CoachVision_Mobile?style=flat-square)](https://github.com/Bennyzebra/CoachVision_Mobile)
-[![GitHub contributors](https://img.shields.io/github/contributors/Bennyzebra/CoachVision_Mobile?style=flat-square)](https://github.com/Bennyzebra/CoachVision_Mobile/graphs/contributors)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.18-339933?style=flat-square)](package.json)
 
 CoachVision brings team profiles, a drill library, AI-assisted practice planning, and session feedback into one workflow. This repository contains the React web application, its Capacitor iOS project, and Supabase database migrations and Edge Function code.
