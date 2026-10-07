@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const onboardingSource = readFileSync(new URL("./Onboarding.tsx", import.meta.url), "utf8");
-const appCssSource = readFileSync(new URL("../index.css", import.meta.url), "utf8");
-const layoutSource = readFileSync(new URL("../components/Layout.tsx", import.meta.url), "utf8");
+const appCssSource = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
+const layoutSource = readFileSync(new URL("../../components/Layout.tsx", import.meta.url), "utf8");
 
 test("create-team onboarding stays frontend-only", () => {
   assert.doesNotMatch(onboardingSource, /from\("teams"\)|supabase|\.insert\(/);

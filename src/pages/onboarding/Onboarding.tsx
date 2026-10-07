@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  Camera,
   Check,
   ChevronDown,
   CircleDot,
@@ -34,7 +33,6 @@ import {
   type PlayerDraft,
 } from "@/lib/createTeamDraft";
 import { cn } from "@/lib/utils";
-import { validateTeamLogoFile } from "./teamLogoUpload";
 
 const stepTitles = [
   "Create your first team",
@@ -304,8 +302,6 @@ const Onboarding = () => {
   const [draft, setDraft] = useState<CreateTeamDraft>(() => createInitialTeamDraft());
   const [step, setStep] = useState<CreateTeamStep>(0);
   const [revealedSteps, setRevealedSteps] = useState<Set<CreateTeamStep>>(() => new Set());
-  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
-  const [logoError, setLogoError] = useState<string | null>(null);
   const [customPriority, setCustomPriority] = useState("");
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => new Set());
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -318,12 +314,6 @@ const Onboarding = () => {
     headingRef.current?.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
-
-  useEffect(() => {
-    return () => {
-      if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
-    };
-  }, [logoPreviewUrl]);
 
   const revealCurrentStepErrors = useCallback(() => {
     setRevealedSteps((current) => new Set(current).add(step));
@@ -437,95 +427,47 @@ const Onboarding = () => {
     });
   };
 
-  const handleLogoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
-    const validationError = validateTeamLogoFile(file);
-    if (validationError) {
-      setLogoError(validationError);
-      return;
-    }
-
-    setLogoError(null);
-    setDraftFields({ logoFile: file });
-    setLogoPreviewUrl(URL.createObjectURL(file));
-  };
-
-  const removeLogo = () => {
-    setDraftFields({ logoFile: null });
-    setLogoPreviewUrl(null);
-    setLogoError(null);
-  };
-
   const renderTeamIdentity = () => (
-    <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <div className="space-y-3">
-        <Label>Team photo <span className="font-normal text-muted-foreground">(optional)</span></Label>
-        <label className="group relative flex aspect-square w-full max-w-64 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted/35 transition hover:border-primary/50 hover:bg-primary/5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-          {logoPreviewUrl ? (
-            <img src={logoPreviewUrl} alt="Selected team preview" className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex flex-col items-center gap-3 px-5 text-center text-muted-foreground">
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Camera className="h-6 w-6" aria-hidden="true" />
-              </span>
-              <span className="text-sm font-medium text-foreground">Choose a team photo</span>
-              <span className="text-xs">PNG, JPG, or WebP · up to 5 MB</span>
-            </span>
-          )}
-          <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={handleLogoSelect} />
-        </label>
-        {logoPreviewUrl && (
-          <Button type="button" variant="ghost" className="h-11 w-full max-w-64 text-muted-foreground" onClick={removeLogo}>
-            Remove photo
-          </Button>
-        )}
-        <FieldError message={logoError ?? undefined} />
+    <div className="space-y-5">
+      <div className="space-y-2" data-field-error={Boolean(visibleErrors.teamName) || undefined}>
+        <Label htmlFor="team-name">Team name <span className="text-destructive">*</span></Label>
+        <Input
+          id="team-name"
+          value={draft.teamName}
+          maxLength={60}
+          autoComplete="organization"
+          placeholder="Northside Falcons"
+          className="h-12"
+          onChange={(event) => setDraftFields({ teamName: event.target.value })}
+          aria-invalid={Boolean(visibleErrors.teamName)}
+        />
+        <FieldError message={visibleErrors.teamName} />
       </div>
 
-      <div className="space-y-5">
-        <div className="space-y-2" data-field-error={Boolean(visibleErrors.teamName) || undefined}>
-          <Label htmlFor="team-name">Team name <span className="text-destructive">*</span></Label>
-          <Input
-            id="team-name"
-            value={draft.teamName}
-            maxLength={60}
-            autoComplete="organization"
-            placeholder="Northside Falcons"
-            className="h-12"
-            onChange={(event) => setDraftFields({ teamName: event.target.value })}
-            aria-invalid={Boolean(visibleErrors.teamName)}
-          />
-          <FieldError message={visibleErrors.teamName} />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Sport</Label>
-          <div className="flex min-h-12 items-center gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4">
-            <CircleDot className="h-5 w-5 text-primary" aria-hidden="true" />
-            <div className="flex-1">
-              <p className="font-medium">Basketball</p>
-              <p className="text-xs text-muted-foreground">The supported sport for this version</p>
-            </div>
-            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">Selected</span>
+      <div className="space-y-2">
+        <Label>Sport</Label>
+        <div className="flex min-h-12 items-center gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4">
+          <CircleDot className="h-5 w-5 text-primary" aria-hidden="true" />
+          <div className="flex-1">
+            <p className="font-medium">Basketball</p>
+            <p className="text-xs text-muted-foreground">The supported sport for this version</p>
           </div>
+          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">Selected</span>
         </div>
+      </div>
 
-        <div className="space-y-2" data-field-error={Boolean(visibleErrors.organization) || undefined}>
-          <Label htmlFor="organization">Organization <span className="font-normal text-muted-foreground">(optional)</span></Label>
-          <Input
-            id="organization"
-            value={draft.organization}
-            maxLength={80}
-            placeholder="School, club, or community program"
-            className="h-12"
-            onChange={(event) => setDraftFields({ organization: event.target.value })}
-            aria-invalid={Boolean(visibleErrors.organization)}
-          />
-          <FieldError message={visibleErrors.organization} />
-        </div>
+      <div className="space-y-2" data-field-error={Boolean(visibleErrors.organization) || undefined}>
+        <Label htmlFor="organization">Organization <span className="font-normal text-muted-foreground">(optional)</span></Label>
+        <Input
+          id="organization"
+          value={draft.organization}
+          maxLength={80}
+          placeholder="School, club, or community program"
+          className="h-12"
+          onChange={(event) => setDraftFields({ organization: event.target.value })}
+          aria-invalid={Boolean(visibleErrors.organization)}
+        />
+        <FieldError message={visibleErrors.organization} />
       </div>
     </div>
   );
@@ -799,7 +741,7 @@ const Onboarding = () => {
             <CardContent className="space-y-4 p-5 pt-0">
               <div className="flex items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary">
-                  {logoPreviewUrl ? <img src={logoPreviewUrl} alt="" className="h-full w-full object-cover" /> : <Users className="h-6 w-6" aria-hidden="true" />}
+                  <Users className="h-6 w-6" aria-hidden="true" />
                 </div>
                 <div className="min-w-0"><p className="truncate text-lg font-semibold">{draft.teamName.trim()}</p><p className="text-sm text-muted-foreground">Basketball · {draft.organization.trim() || "Independent"}</p></div>
               </div>

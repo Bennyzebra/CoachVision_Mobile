@@ -11,7 +11,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { TeamSetupGate } from "@/components/TeamSetupGate";
 import { isSupabaseConfigured } from "@/integrations/supabase/client";
 import Auth from "./pages/Auth";
-import Onboarding from "./pages/Onboarding";
+import Onboarding from "./pages/onboarding/Onboarding";
 import DrillLibrary from "./pages/DrillLibrary";
 import AutoPlan from "./pages/AutoPlan";
 import Suggestions from "./pages/Suggestions";

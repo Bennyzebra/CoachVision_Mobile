@@ -11,7 +11,6 @@ export interface PlayerDraft {
 }
 
 export interface CreateTeamDraft {
-  logoFile: File | null;
   teamName: string;
   sport: "Basketball";
   organization: string;
@@ -51,7 +50,6 @@ export const createPlayerDraft = (): PlayerDraft => ({
 });
 
 export const createInitialTeamDraft = (): CreateTeamDraft => ({
-  logoFile: null,
   teamName: "",
   sport: "Basketball",
   organization: "",
