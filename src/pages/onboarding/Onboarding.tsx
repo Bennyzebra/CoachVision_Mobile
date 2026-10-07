@@ -460,6 +460,10 @@ const Onboarding = () => {
         <Label htmlFor="organization">Organization <span className="font-normal text-muted-foreground">(optional)</span></Label>
         <Input
           id="organization"
+          enterKeyHint="done"
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
           value={draft.organization}
           maxLength={80}
           placeholder="School, club, or community program"

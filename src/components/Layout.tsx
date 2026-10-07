@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { Keyboard, KeyboardStyle } from "@capacitor/keyboard";
 import { 
   ChevronDown,
   Settings,
@@ -65,7 +67,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const { currentTeam } = useTeam();
   const { profile, session, user, signOut } = useAuth();
-  const { theme = "system", setTheme } = useTheme();
+  const { theme = "system", resolvedTheme, setTheme } = useTheme();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileHeaderOffsetPx, setMobileHeaderOffsetPx] = useState(0);
@@ -114,6 +116,23 @@ export const Layout = ({ children }: LayoutProps) => {
       Math.abs(currentOffset - nextOffset) > 0.5 ? nextOffset : currentOffset
     );
   }, []);
+
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== "ios" || !isFirstTeamSetup) return;
+
+    // The iOS Previous/Next/Done toolbar adds an extra strip below short setup forms.
+    void Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(console.warn);
+    return () => {
+      void Keyboard.setAccessoryBarVisible({ isVisible: true }).catch(console.warn);
+    };
+  }, [isFirstTeamSetup]);
+
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== "ios" || !resolvedTheme) return;
+    void Keyboard.setStyle({
+      style: resolvedTheme === "dark" ? KeyboardStyle.Dark : KeyboardStyle.Light,
+    }).catch(console.warn);
+  }, [resolvedTheme]);
 
   useEffect(() => {
     if (isFirstTeamSetup) setMobileHeaderOffset(0, false);
